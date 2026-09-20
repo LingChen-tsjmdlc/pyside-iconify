@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyside-iconify"
+dynamic = ["version"]
+description = "An independent Iconify icon integration for PySide6, producing standard QIcon objects."
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["pyside", "pyside2", "pyside6", "qt", "iconify", "svg", "icons"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: User Interfaces",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+pyside2 = [
+    "PySide2==5.15.2.1; python_version < '3.11'",
+]
+pyside6 = [
+    "PySide6-Essentials>=6.8.3,<7; python_version >= '3.10' and python_version < '3.14'",
+    "PySide6-Essentials>=6.11.2,<7; python_version >= '3.14'",
+]
+
+[tool.hatch.version]
+path = "src/pyside_iconify/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyside_iconify"]
+exclude = ["**/.gitkeep", "**/__pycache__/**"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src/pyside_iconify",
+    "/docs",
+    "/examples",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+exclude = ["**/.gitkeep", "**/__pycache__/**"]
+
+[dependency-groups]
+test = [
+    "pytest>=8,<9",
+    "pytest-qt>=4.4,<5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+qt_api = "pyside6"
+
+[tool.uv]
+conflicts = [
+    [{ extra = "pyside2" }, { extra = "pyside6" }],
+]
