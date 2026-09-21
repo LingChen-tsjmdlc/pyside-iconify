@@ -59,3 +59,35 @@ class IconNotLoadedError(IconifyError):
 
 class UnsupportedTargetError(IconifyError):
     """目标类型不受支持。"""
+
+
+class NetworkError(IconifyError):
+    """网络请求失败。"""
+
+
+class OfflineError(IconifyError):
+    """离线模式下数据不可用。"""
+
+
+class RateLimitError(IconifyError):
+    """请求过于频繁被限流。"""
+
+
+class ServerError(IconifyError):
+    """服务器返回错误。"""
+
+
+class InvalidResponseError(IconifyError):
+    """响应内容不是合法图标数据。"""
+
+
+class ResponseTooLargeError(IconifyError):
+    """响应内容超出大小上限。"""
+
+
+class RequestCancelledError(IconifyError):
+    """请求被主动取消。"""
+
+
+class ClientClosedError(IconifyError):
+    """客户端已关闭。"""

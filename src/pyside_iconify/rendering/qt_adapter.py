@@ -84,6 +84,8 @@ def normalize_color_value(value: ColorValue | None) -> NormalizedColorValue | No
 
 def normalize_size(value: object) -> SizeSpec:
     """把 QSize 或其它公开尺寸写法转为 SizeSpec。"""
+    if isinstance(value, SizeSpec):
+        return value
     if isinstance(value, QSize):
         if value.width() <= 0 or value.height() <= 0:
             raise InvalidSizeError("QSize dimensions must be positive")

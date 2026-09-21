@@ -6,6 +6,7 @@ from collections.abc import Mapping
 import re
 
 from pyside_iconify._errors import (
+    ClientClosedError,
     DuplicateIconError,
     IconNotFoundError,
     IconNotLoadedError,
@@ -14,9 +15,16 @@ from pyside_iconify._errors import (
     InvalidIconDataError,
     InvalidIconNameError,
     InvalidOpacityError,
+    InvalidResponseError,
     InvalidRotationError,
     InvalidSizeError,
+    NetworkError,
     NoApplicationError,
+    OfflineError,
+    RateLimitError,
+    RequestCancelledError,
+    ResponseTooLargeError,
+    ServerError,
     UnsupportedSvgError,
     UnsupportedTargetError,
     UnsafeIconDataError,
@@ -81,28 +89,51 @@ def __getattr__(name: str) -> object:
         from pyside_iconify import _api
 
         return getattr(_api, name)
+    network_names = {
+        "IconifyClient",
+        "LoadRequest",
+        "default_client",
+        "is_offline",
+        "load_icons",
+        "set_offline",
+    }
+    if name in network_names:
+        from pyside_iconify import network
+
+        return getattr(network, name)
     raise AttributeError(name)
 
 
 __all__ = [
+    "ClientClosedError",
     "DuplicateIconError",
     "IconNotFoundError",
     "IconNotLoadedError",
     "IconWidget",
+    "IconifyClient",
     "IconifyError",
     "InvalidColorError",
     "InvalidIconDataError",
     "InvalidIconNameError",
     "InvalidOpacityError",
+    "InvalidResponseError",
     "InvalidRotationError",
     "InvalidSizeError",
+    "LoadRequest",
+    "NetworkError",
     "NoApplicationError",
+    "OfflineError",
+    "RateLimitError",
+    "RequestCancelledError",
+    "ResponseTooLargeError",
+    "ServerError",
     "UnsupportedSvgError",
     "UnsupportedTargetError",
     "UnsafeIconDataError",
     "WrongThreadError",
     "add_collection",
     "add_icon",
+    "default_client",
     "get_default_config",
     "get_icon",
     "get_icon_colors",
@@ -111,8 +142,11 @@ __all__ = [
     "hex_argb",
     "hex_rgba",
     "is_monotone",
+    "is_offline",
+    "load_icons",
     "mark_pending",
     "set_cache_limits",
     "set_default_config",
     "set_disabled_opacity",
+    "set_offline",
 ]

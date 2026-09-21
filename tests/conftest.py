@@ -13,8 +13,16 @@ from PySide6.QtWidgets import QApplication
 
 from pyside_iconify import set_default_config
 from pyside_iconify.core.registry import registry
+from pyside_iconify.network import client as network_client
 from pyside_iconify.rendering.cache import pixmap_cache, svg_cache
 from pyside_iconify.widgets import animation
+
+
+def _reset_default_client() -> None:
+    """默认客户端回到离线、无失败记录的状态，避免测试真联网。"""
+    client = network_client.default_client()
+    client.set_offline(True)
+    client.reset_failures()
 
 
 def _drain_events(iterations: int = 10) -> None:
@@ -48,6 +56,7 @@ def _stop_active_qt_objects() -> None:
 def reset_library_state(qtbot: object) -> None:
     """每条测试前后恢复库状态并清理 Qt 生命周期残留。"""
     _drain_events()
+    _reset_default_client()
     registry.clear()
     pixmap_cache.clear()
     svg_cache.clear()
@@ -64,6 +73,7 @@ def reset_library_state(qtbot: object) -> None:
     yield
     _stop_active_qt_objects()
     _drain_events()
+    _reset_default_client()
     registry.clear()
     pixmap_cache.clear()
     svg_cache.clear()

@@ -135,6 +135,12 @@ class IconRegistry:
         with self._lock:
             return icon_name in self._pending
 
+    def clear_pending(self, name: str | IconName) -> None:
+        """解除图标的加载中标记。"""
+        icon_name = parse_icon_name(name)
+        with self._lock:
+            self._pending.discard(icon_name)
+
     def set_limit(self, entries: int | None) -> None:
         """设置数据缓存上限。"""
         if entries is not None and entries <= 0:

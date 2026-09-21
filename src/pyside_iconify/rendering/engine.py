@@ -56,7 +56,12 @@ class IconEngine(QIconEngine):
         return IconEngine(self._name, self._options)
 
     def key(self) -> str:
-        return "pyside_iconify"
+        # 版本参与 key，数据更新后 QIcon 内部缓存才会失效。
+        try:
+            version = registry.version(self._name)
+        except IconNotFoundError:
+            version = "pending"
+        return f"pyside_iconify/{self._name}/{version}"
 
     def actualSize(self, size: QSize, mode: QIcon.Mode, state: QIcon.State) -> QSize:
         if self._options.size.is_em:
@@ -81,6 +86,14 @@ class IconEngine(QIconEngine):
             data = registry.get(render_name)
             version = registry.version(render_name)
         except IconNotFoundError:
+            from pyside_iconify.network import client as _network
+
+            client = _network.default_client()
+            client.ensure_loaded(render_name)
+            if registry.is_pending(render_name):
+                from pyside_iconify.rendering.placeholder import create_blank
+
+                return create_blank(width, height, scale)
             from pyside_iconify._config import get_default_config
 
             fallback = get_default_config().fallback
@@ -137,6 +150,12 @@ class IconEngine(QIconEngine):
 def create_icon(name: IconName, options: IconOptions) -> QIcon:
     """用自定义引擎创建标准 QIcon。"""
     require_main_thread()
+    # 构造即预触发加载：目标（树节点、菜单项）可能迟迟不绘制，
+    # 等首次绘制才请求会拖慢图标出现。
+    if not registry.contains(name) and not registry.is_pending(name):
+        from pyside_iconify.network.client import default_client
+
+        default_client().ensure_loaded(name)
     return QIcon(IconEngine(name, options))
 
 

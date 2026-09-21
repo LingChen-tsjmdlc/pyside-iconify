@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QStyleOption, QWidget
 
@@ -63,6 +64,35 @@ def test_wide_widget_does_not_stretch_icon(
     xs = [point[0] for point in pixels]
     ys = [point[1] for point in pixels]
     assert abs((max(xs) - min(xs)) - (max(ys) - min(ys))) <= 2
+
+
+def test_squeezed_widget_keeps_placeholder_square(qtbot: object) -> None:
+    """控件被压成扁矩形时，占位图按逻辑尺寸居中绘制，不被拉伸。"""
+    widget = IconWidget("widget:no-such-icon", size=40)
+    qtbot.addWidget(widget)
+    widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    widget.resize(120, 30)
+    widget.show()
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.processEvents()
+    image = widget.grab().toImage()
+    points = [
+        (x, y)
+        for y in range(image.height())
+        for x in range(image.width())
+        # 排除 offscreen 平台不透明的窗口背景色
+        if image.pixelColor(x, y).alpha() > 60
+        and image.pixelColor(x, y) != QColor("#efefef")
+    ]
+    assert points, "placeholder did not render"
+    xs = [point[0] for point in points]
+    ink_width = max(xs) - min(xs)
+    # 不横向拉伸：墨迹是占位图自身宽度（40 的画布含内边距约 33），
+    # 而不是控件宽 120。
+    assert ink_width <= 45, ink_width
+    # 水平居中。
+    assert abs((min(xs) + max(xs)) / 2 - image.width() / 2) <= 3
 
 
 def test_qss_color_background_and_explicit_color_priority(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from hashlib import sha256
 
-from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QPainter, QPalette, QPaintEvent
 from PySide6.QtWidgets import QSizePolicy, QStyle, QStyleOption, QWidget
 
@@ -18,6 +18,7 @@ from pyside_iconify._errors import (
 from pyside_iconify.core.names import parse_icon_name
 from pyside_iconify.core.registry import registry
 from pyside_iconify.core.types import IconData, RGBA
+from pyside_iconify.network import client as _network
 from pyside_iconify.rendering.engine import IconOptions
 from pyside_iconify.rendering.options import make_options
 from pyside_iconify.rendering.placeholder import create_blank, create_placeholder
@@ -101,6 +102,9 @@ class IconWidget(QWidget):
         require_application().installEventFilter(self)
         if spin:
             get_spin_clock().add(self)
+        # 构造即预触发加载，不等首次绘制。
+        if not registry.contains(self._name) and not registry.is_pending(self._name):
+            _network.default_client().ensure_loaded(self._name)
         self._update_status()
 
     def iconName(self) -> str:
@@ -236,12 +240,23 @@ class IconWidget(QWidget):
             QStyle.PrimitiveElement.PE_Widget, option, painter, self
         )
         pixmap = self._pixmap(option)
-        painter.drawPixmap(self.contentsRect(), pixmap)
+        # 居中按位图原尺寸绘制，控件被布局挤压时也不拉伸变形。
+        rect = self.contentsRect()
+        source = QRectF(pixmap.rect())
+        ratio = pixmap.devicePixelRatio() or 1.0
+        target = QRectF(
+            rect.x() + (rect.width() - source.width() / ratio) / 2.0,
+            rect.y() + (rect.height() - source.height() / ratio) / 2.0,
+            source.width() / ratio,
+            source.height() / ratio,
+        )
+        painter.drawPixmap(target, pixmap, source)
         painter.end()
 
     def _pixmap(self, option: QStyleOption):
-        width = max(1, self.contentsRect().width())
-        height = max(1, self.contentsRect().height())
+        logical_width, logical_height = self._logical_size()
+        width = max(1.0, logical_width)
+        height = max(1.0, logical_height)
         dpr = self.devicePixelRatioF()
         render_name = self._name
         if registry.is_pending(render_name):
@@ -253,10 +268,17 @@ class IconWidget(QWidget):
             data = registry.get(render_name)
             version = registry.version(render_name)
         except IconNotFoundError as error:
+            client = _network.default_client()
+            client.ensure_loaded(render_name)
+            if registry.is_pending(render_name):
+                self._set_status("loading")
+                self._start_loading_timer()
+                return create_blank(width, height, dpr)
+            failure = client.get_failure(render_name) or error
             self._set_status("missing")
             if not self._reported_failure:
                 self._reported_failure = True
-                self.failed.emit(str(self._name), error)
+                self.failed.emit(str(self._name), failure)
             if self._blank_on_failure:
                 return create_blank(width, height, dpr)
             if isinstance(self._fallback, str):
