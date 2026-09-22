@@ -101,6 +101,18 @@ def __getattr__(name: str) -> object:
         from pyside_iconify import network
 
         return getattr(network, name)
+    if name in {"register_icon_target", "set_icon"}:
+        from pyside_iconify import integrations
+
+        return getattr(integrations, name)
+    if name in {"pack_icons", "pack_project"}:
+        from pyside_iconify import pack
+
+        return getattr(pack, name)
+    if name == "load_bundle":
+        from pyside_iconify import pack
+
+        return getattr(pack, "load_bundle")
     raise AttributeError(name)
 
 
@@ -143,10 +155,15 @@ __all__ = [
     "hex_rgba",
     "is_monotone",
     "is_offline",
+    "load_bundle",
     "load_icons",
     "mark_pending",
+    "pack_icons",
+    "pack_project",
+    "register_icon_target",
     "set_cache_limits",
     "set_default_config",
     "set_disabled_opacity",
+    "set_icon",
     "set_offline",
 ]

@@ -9,7 +9,7 @@
 | Step 0 | 定方案、搭目录           | 已完成                                                                   |
 | Step 1 | 离线显示图标             | 实现完成，离屏诊断全部通过；系统主题 / 多屏高分屏 / 大列表性能待真机验收 |
 | Step 2 | 联网下载和缓存           | 实现完成，离屏测试与真网络冒烟通过                                       |
-| Step 3 | 按钮图标、主题、离线打包 | 未开始                                                                   |
+| Step 3 | 按钮图标、主题、离线打包 | 实现完成，离屏测试通过；真机验收待做                                     |
 | Step 4 | 验证并发布               | 未开始                                                                   |
 
 **顺序原则：先让离线显示正确，再加网络。** 否则很容易做出一个「能下载但界面会卡」的东西。
@@ -31,7 +31,7 @@ Step 1 的功能已实现，可运行 `examples/step1_demo.py` 查看。
 2. 解析 Iconify 的 JSON，处理默认宽高和别名
 3. 提供 `add_icon` / `add_collection` 注册本地图标
 4. 颜色解析：颜色名、HEX 3 / 4 / 6 / 8 位、`rgb()`、`rgba()`、`hsl()`、`hsla()`、元组、`QColor`，另加 `hex_argb()` / `hex_rgba()`
-5. 颜色三参数 `color` / `light_color` / `dark_color`，以及 `{原色: 新色}` 映射表换色
+5. 颜色三参数 `color` / `color_light_theme` / `color_dark_theme`，以及 `{原色: 新色}` 映射表换色
 6. 从图标数据生成完整 SVG，处理 `currentColor`
 7. 用 Qt 画出来，按屏幕缩放比渲染物理像素
 8. 实现 `IconWidget` 和 `get_icon`，支持 `size`、`color`、`rotate`、`opacity`
@@ -60,7 +60,7 @@ Step 1 的功能已实现，可运行 `examples/step1_demo.py` 查看。
 - 多色图标传单个颜色时保持原配色，不被染成单色
 - 多色图标传映射表时只替换列出的颜色，其余不动
 - 映射表的键按解析后的颜色匹配，`#4285F4` 与 `rgb(66,133,244)` 等价
-- `light_color` / `dark_color` 优先于 `color`，只写一个时另一主题回退到自动跟随
+- `color_light_theme` / `color_dark_theme` 优先于 `color`，只写一个时另一主题回退到自动跟随
 - 不填颜色时跟随主题：亮色主题深色图标、暗色主题浅色图标
 - 运行中切换主题（系统主题 / QSS / `setPalette`）图标自动更新
 - 按钮禁用时图标按透明度变淡，多色图标配色不变
@@ -130,6 +130,8 @@ Step 1 的功能已实现，可运行 `examples/step1_demo.py` 查看。
 - 上千行列表滚动不掉帧，图标选择器滚动流畅（指标见[性能文档](05-performance.md)）
 - 清空缓存并断网后，打包的图标仍能显示
 
+实现说明（2026-09-22）：`set_icon` 适配器表覆盖按钮/QAction/标签页/列表项/树节点/窗口图标，`register_icon_target` 接入自定义控件；悬停/选中变色是显式启用的——写 `hover_color` / `selected_color`（各带亮暗主题派生参数）才有效果，不写则行为与普通图标一致（按钮悬停由事件驱动切换图标实现，`get_icon` 不含 hover 参数——裸 QIcon 表达不了悬停）；`pack_project` / `pack_icons` + `load_bundle`（或 `python -m pyside_iconify.pack`）实现离线打包；基准脚本 `tests/benchmark/list_scroll.py` 实测 1000 行列表 2.6ms/帧、选择器 71ms/屏。运行 `examples/step3_*.py` 可查看。
+
 ## 4.6 Step 4：验证与发布
 
 ### Step 4 做什么
@@ -175,7 +177,7 @@ Step 1 的功能已实现，可运行 `examples/step1_demo.py` 查看。
 | 许可证      | MIT                                                                                                                                         |
 | 尺寸参数    | `size`，默认 24；可传数字、元组、`QSize`、`"24px"`、`"1.5em"`                                                                               |
 | 颜色参数    | 颜色名 / HEX 3·4·6·8 位 / rgb() / rgba() / hsl() / hsla() / 元组 / QColor；带透明度的 HEX 默认 `#RRGGBBAA`，Qt 顺序用 `hex_argb()` 显式声明 |
-| 主题适配    | 不填颜色时自动跟随亮暗主题与禁用状态；`light_color` / `dark_color` 可分别指定，优先于 `color`                                               |
+| 主题适配    | 不填颜色时自动跟随亮暗主题与禁用状态；`color_light_theme` / `color_dark_theme` 可分别指定，优先于 `color`                                   |
 | 多色换色    | 颜色参数可传 `{原色: 新色}` 映射表；多色图标传单个颜色不生效，保持原配色                                                                    |
 | 禁用状态    | 用透明度变淡（默认 0.4），不换成灰色；`set_disabled_opacity()` 可调                                                                         |
 | 透明度叠加  | 颜色 alpha × `opacity` × 状态系数，相乘而不是覆盖                                                                                           |

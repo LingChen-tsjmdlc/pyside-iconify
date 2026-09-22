@@ -104,6 +104,7 @@ def test_qss_color_background_and_explicit_color_priority(
         'IconWidget[qss~="blue"] { color: #0000ff; background: #111111; }'
     )
     qtbot.addWidget(host)
+    host.move(400, 400)
     host.show()
     qss = IconWidget("widget:half", size=24, qss="blue", parent=host)
     qss.show()
@@ -122,14 +123,15 @@ def test_theme_and_light_dark_priority(
 ) -> None:
     host = QWidget()
     qtbot.addWidget(host)
+    host.move(400, 400)
     host.show()
     theme = IconWidget("widget:square", size=24, parent=host)
     override = IconWidget(
         "widget:square",
         size=24,
         color="#ff0000",
-        light_color="#8250df",
-        dark_color="#1a7f37",
+        color_light_theme="#8250df",
+        color_dark_theme="#1a7f37",
         parent=host,
     )
     override.move(30, 0)
@@ -167,7 +169,7 @@ def test_missing_fallback_placeholder_and_blank(
     blank = show_widget(qtbot, IconWidget("widget:missing", size=24, fallback=None))
     option = QStyleOption()
     option.initFrom(blank)
-    image = blank._pixmap(option).toImage()
+    image = blank._pixmap().toImage()
     assert not any(image.pixelColor(x, y).alpha() for x in range(24) for y in range(24))
 
 

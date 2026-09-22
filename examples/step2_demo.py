@@ -121,13 +121,16 @@ def build_window() -> QWidget:
     size_box = QSpinBox()
     size_box.setRange(12, 128)
     size_box.setValue(40)
-    color_button = QPushButton()
-    color_button.setToolTip("点击选择颜色；不选则跟随亮暗主题")
+    light_button = QPushButton()
+    light_button.setToolTip("亮色主题颜色（color_light_theme）；不选则跟随主题文字色")
+    dark_button = QPushButton()
+    dark_button.setToolTip("暗色主题颜色（color_dark_theme）；不选则跟随主题文字色")
     controls.addWidget(name_edit, 1)
     controls.addWidget(confirm_button)
     controls.addWidget(QLabel("大小"))
     controls.addWidget(size_box)
-    controls.addWidget(color_button)
+    controls.addWidget(light_button)
+    controls.addWidget(dark_button)
     controls.addStretch()
     root.addLayout(controls)
     preview = IconWidget("mdi:lightning-bolt", size=40)
@@ -150,39 +153,48 @@ def build_window() -> QWidget:
     bottom.addStretch()
     root.addLayout(bottom)
 
-    chosen_color: list[QColor | None] = [None]
+    chosen_light: list[QColor | None] = [None]
+    chosen_dark: list[QColor | None] = [None]
 
-    def refresh_color_button() -> None:
-        if chosen_color[0] is None:
-            color_button.setText("选择颜色（跟随主题）")
-            color_button.setStyleSheet("")
+    def refresh_color_button(button: QPushButton, chosen: list[QColor | None], label: str) -> None:
+        if chosen[0] is None:
+            button.setText(f"{label}（跟随）")
+            button.setStyleSheet("")
         else:
-            color_button.setText(f"颜色 {chosen_color[0].name()}")
-            color_button.setStyleSheet(
-                f"background: {chosen_color[0].name()};"
-            )
+            button.setText(f"{label} {chosen[0].name()}")
+            button.setStyleSheet(f"background: {chosen[0].name()};")
 
-    def pick_color() -> None:
-        color = QColorDialog.getColor(
-            chosen_color[0] or QApplication.palette().color(QPalette.ColorRole.WindowText),
-            window,
-            "选择图标颜色",
-        )
-        if color.isValid():
-            chosen_color[0] = color
-            refresh_color_button()
-            apply_preview()
+    def make_picker(chosen: list[QColor | None], label: str, default_role: QPalette.ColorRole) -> object:
+        def pick() -> None:
+            color = QColorDialog.getColor(
+                chosen[0] or QApplication.palette().color(default_role),
+                window,
+                f"选择{label}",
+            )
+            if color.isValid():
+                chosen[0] = color
+                refresh_color_button(light_button if label == "亮色" else dark_button, chosen, label)
+                apply_preview()
+
+        return pick
 
     def apply_preview() -> None:
         preview.setSize(size_box.value())
-        preview.setColor(chosen_color[0])
+        preview.setColorLightTheme(chosen_light[0])
+        preview.setColorDarkTheme(chosen_dark[0])
         preview.setIcon(name_edit.text().strip())
 
     confirm_button.clicked.connect(apply_preview)
-    color_button.clicked.connect(pick_color)
+    light_button.clicked.connect(
+        make_picker(chosen_light, "亮色", QPalette.ColorRole.WindowText)
+    )
+    dark_button.clicked.connect(
+        make_picker(chosen_dark, "暗色", QPalette.ColorRole.Window)
+    )
     size_box.valueChanged.connect(lambda _: apply_preview())
     name_edit.returnPressed.connect(apply_preview)
-    refresh_color_button()
+    refresh_color_button(light_button, chosen_light, "亮色")
+    refresh_color_button(dark_button, chosen_dark, "暗色")
 
     def refresh_offline_button() -> None:
         offline_button.setText(

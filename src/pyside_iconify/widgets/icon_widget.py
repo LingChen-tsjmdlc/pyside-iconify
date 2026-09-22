@@ -47,8 +47,11 @@ class IconWidget(QWidget):
         *,
         size: object | None = None,
         color: ColorValue | None = None,
-        light_color: ColorValue | None = None,
-        dark_color: ColorValue | None = None,
+        color_light_theme: ColorValue | None = None,
+        color_dark_theme: ColorValue | None = None,
+        hover_color: ColorValue | None = None,
+        hover_color_light_theme: ColorValue | None = None,
+        hover_color_dark_theme: ColorValue | None = None,
         opacity: float | None = None,
         width: object | None = None,
         height: object | None = None,
@@ -73,8 +76,11 @@ class IconWidget(QWidget):
         self._options = make_options(
             size=size,
             color=color,
-            light_color=light_color,
-            dark_color=dark_color,
+            color_light_theme=color_light_theme,
+            color_dark_theme=color_dark_theme,
+            hover_color=hover_color,
+            hover_color_light_theme=hover_color_light_theme,
+            hover_color_dark_theme=hover_color_dark_theme,
             opacity=opacity,
             width=width,
             height=height,
@@ -84,6 +90,7 @@ class IconWidget(QWidget):
             h_flip=h_flip,
             v_flip=v_flip,
         )
+        self.setMouseTracking(True)
         self._width_override = width
         self._height_override = height
         self._spin = spin
@@ -93,13 +100,18 @@ class IconWidget(QWidget):
         )
         self._blank_on_failure = fallback is None
         self._status = "empty"
+        self._hovering = False
+        self._key_state: tuple | None = None
+        self._key_cache: str | None = None
+        self._fast_state: tuple | None = None
+        self._fast_pixmap = None
         self._reported_failure = False
         self._repolishing = False
         self._loading_timer: QTimer | None = None
         if qss:
             self.setProperty("qss", qss)
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        require_application().installEventFilter(self)
+            # QSS 背景需要控件自己参与样式绘制
+            self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         if spin:
             get_spin_clock().add(self)
         # 构造即预触发加载，不等首次绘制。
@@ -125,8 +137,14 @@ class IconWidget(QWidget):
         self._options = make_options(
             size=value,
             color=self._options.color,
-            light_color=self._options.light_color,
-            dark_color=self._options.dark_color,
+            color_light_theme=self._options.color_light_theme,
+            color_dark_theme=self._options.color_dark_theme,
+            hover_color=self._options.hover_color,
+            hover_color_light_theme=self._options.hover_color_light_theme,
+            hover_color_dark_theme=self._options.hover_color_dark_theme,
+            selected_color=self._options.selected_color,
+            selected_color_light_theme=self._options.selected_color_light_theme,
+            selected_color_dark_theme=self._options.selected_color_dark_theme,
             opacity=self._options.opacity,
             disabled_opacity=self._options.disabled_opacity,
             spin=self._options.spin,
@@ -142,13 +160,13 @@ class IconWidget(QWidget):
         """设置默认颜色。"""
         self._replace_options(color=value)
 
-    def setLightColor(self, value: ColorValue | None) -> None:
+    def setColorLightTheme(self, value: ColorValue | None) -> None:
         """设置亮色主题颜色。"""
-        self._replace_options(light_color=value)
+        self._replace_options(color_light_theme=value)
 
-    def setDarkColor(self, value: ColorValue | None) -> None:
+    def setColorDarkTheme(self, value: ColorValue | None) -> None:
         """设置暗色主题颜色。"""
-        self._replace_options(dark_color=value)
+        self._replace_options(color_dark_theme=value)
 
     def setOpacity(self, value: float) -> None:
         """设置整体透明度。"""
@@ -191,22 +209,13 @@ class IconWidget(QWidget):
         if self._spin:
             get_spin_clock().sync()
 
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() in {
-            QEvent.Type.ApplicationPaletteChange,
-            QEvent.Type.ThemeChange,
-        }:
-            self._repolish()
-            self.updateGeometry()
-            self.update()
-        return super().eventFilter(watched, event)
-
     def changeEvent(self, event: QEvent) -> None:
         super().changeEvent(event)
         if event.type() in {
             QEvent.Type.PaletteChange,
             QEvent.Type.ApplicationPaletteChange,
             QEvent.Type.StyleChange,
+            QEvent.Type.ThemeChange,
         }:
             self._repolish()
         if event.type() in {
@@ -215,6 +224,7 @@ class IconWidget(QWidget):
             QEvent.Type.FontChange,
             QEvent.Type.EnabledChange,
             QEvent.Type.StyleChange,
+            QEvent.Type.ThemeChange,
         }:
             self.updateGeometry()
             self.update()
@@ -233,13 +243,15 @@ class IconWidget(QWidget):
             self._repolishing = False
 
     def paintEvent(self, event: QPaintEvent) -> None:
-        option = QStyleOption()
-        option.initFrom(self)
         painter = QPainter(self)
-        self.style().drawPrimitive(
-            QStyle.PrimitiveElement.PE_Widget, option, painter, self
-        )
-        pixmap = self._pixmap(option)
+        if self.testAttribute(Qt.WidgetAttribute.WA_StyledBackground):
+            # QSS 背景需要控件自己参与样式绘制
+            option = QStyleOption()
+            option.initFrom(self)
+            self.style().drawPrimitive(
+                QStyle.PrimitiveElement.PE_Widget, option, painter, self
+            )
+        pixmap = self._pixmap()
         # 居中按位图原尺寸绘制，控件被布局挤压时也不拉伸变形。
         rect = self.contentsRect()
         source = QRectF(pixmap.rect())
@@ -253,11 +265,37 @@ class IconWidget(QWidget):
         painter.drawPixmap(target, pixmap, source)
         painter.end()
 
-    def _pixmap(self, option: QStyleOption):
+    def _pixmap(self):
         logical_width, logical_height = self._logical_size()
         width = max(1.0, logical_width)
         height = max(1.0, logical_height)
         dpr = self.devicePixelRatioF()
+        # 快路径：数据版本、尺寸、缩放比、颜色来源、悬停/禁用状态都没变
+        # 时，画面必然与上次一致，直接复用位图，跳过全部解析与哈希。
+        # 调色板变化会换 palette cacheKey，主题切换、QSS 改色都能命中失效。
+        try:
+            fast_state = (
+                str(self._name),
+                registry.version(self._name),
+                width,
+                height,
+                dpr,
+                id(self._options),
+                self.isEnabled(),
+                self._hovering,
+                self.palette().cacheKey(),
+                require_application().palette().cacheKey(),
+            )
+        except IconNotFoundError:
+            fast_state = None
+        if (
+            fast_state is not None
+            and not self._spin
+            and fast_state == self._fast_state
+            and self._fast_pixmap is not None
+            and not registry.is_pending(self._name)
+        ):
+            return self._fast_pixmap
         render_name = self._name
         if registry.is_pending(render_name):
             self._set_status("loading")
@@ -292,31 +330,32 @@ class IconWidget(QWidget):
                 return create_placeholder(width, height, dpr)
         if render_name == self._name:
             self._set_status("ready")
-        color, colors = self._resolve_colors(option)
+        color, colors = self._resolve_colors()
         disabled = self._options.disabled_opacity if not self.isEnabled() else 1.0
         rotate = self._options.rotate
         if self._spin:
             rotate = (rotate + get_spin_clock().angle(self._spin_period)) % 360.0
         opacity = self._options.opacity * disabled
-        key = sha256(
-            repr(
-                (
-                    str(render_name),
-                    version,
-                    width,
-                    height,
-                    dpr,
-                    color,
-                    tuple(sorted((colors or {}).items(), key=repr)),
-                    opacity,
-                    rotate,
-                    self._options.h_flip,
-                    self._options.v_flip,
-                )
-            ).encode("utf-8")
-        ).hexdigest()
+        # 静态场景下参数不变，直接复用上次的缓存键，省掉每帧的哈希计算
+        key_state = (
+            str(render_name),
+            version,
+            width,
+            height,
+            dpr,
+            color,
+            tuple(sorted((colors or {}).items(), key=repr)) if colors else None,
+            opacity,
+            rotate,
+            self._options.h_flip,
+            self._options.v_flip,
+        )
+        if key_state != self._key_state:
+            self._key_state = key_state
+            self._key_cache = sha256(repr(key_state).encode("utf-8")).hexdigest()
+        key = self._key_cache
         try:
-            return render_pixmap(
+            pixmap = render_pixmap(
                 cache_key=key,
                 data=data,
                 width=width,
@@ -336,6 +375,10 @@ class IconWidget(QWidget):
                 self._reported_failure = True
                 self.failed.emit(str(self._name), error)
             return create_placeholder(width, height, dpr)
+        # 只有成功渲染才更新快路径状态，保证键与位图始终配对
+        self._fast_state = fast_state
+        self._fast_pixmap = pixmap
+        return pixmap
 
     def _start_loading_timer(self) -> None:
         if self._loading_timer is None:
@@ -357,19 +400,34 @@ class IconWidget(QWidget):
         self._update_status()
         self.update()
 
-    def _resolve_colors(
-        self, option: QStyleOption
-    ) -> tuple[RGBA | None, Mapping[RGBA, RGBA] | None]:
-        window = option.palette.color(QPalette.ColorRole.Window)
+    def enterEvent(self, event: QEvent) -> None:
+        self._hovering = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._hovering = False
+        self.update()
+        super().leaveEvent(event)
+
+    def _resolve_colors(self) -> tuple[RGBA | None, Mapping[RGBA, RGBA] | None]:
+        window = self.palette().color(QPalette.ColorRole.Window)
         selected: ColorValue | None
-        if window.lightness() < 128 and self._options.dark_color is not None:
-            selected = self._options.dark_color
-        elif window.lightness() >= 128 and self._options.light_color is not None:
-            selected = self._options.light_color
+        dark = window.lightness() < 128
+        if dark and self._options.color_dark_theme is not None:
+            selected = self._options.color_dark_theme
+        elif not dark and self._options.color_light_theme is not None:
+            selected = self._options.color_light_theme
         else:
             selected = self._options.color
         if selected is None:
-            selected = normalize_color(option.palette.color(self.foregroundRole()))
+            selected = normalize_color(self.palette().color(self.foregroundRole()))
+        if self._hovering:
+            from pyside_iconify.rendering.engine import _select_hover_color
+
+            override = _select_hover_color(self._options, dark)
+            if override is not None:
+                selected = override
         if isinstance(selected, Mapping):
             return None, selected
         return selected, None
@@ -389,8 +447,14 @@ class IconWidget(QWidget):
         values = {
             "size": self._options.size,
             "color": self._options.color,
-            "light_color": self._options.light_color,
-            "dark_color": self._options.dark_color,
+            "color_light_theme": self._options.color_light_theme,
+            "color_dark_theme": self._options.color_dark_theme,
+            "hover_color": self._options.hover_color,
+            "hover_color_light_theme": self._options.hover_color_light_theme,
+            "hover_color_dark_theme": self._options.hover_color_dark_theme,
+            "selected_color": self._options.selected_color,
+            "selected_color_light_theme": self._options.selected_color_light_theme,
+            "selected_color_dark_theme": self._options.selected_color_dark_theme,
             "opacity": self._options.opacity,
             "disabled_opacity": self._options.disabled_opacity,
             "rotate": self._options.rotate,

@@ -38,12 +38,12 @@ IconWidget("mdi:home")   # 不填颜色
 想分别指定亮暗颜色：
 
 ```python
-IconWidget("mdi:home", light_color="#333333", dark_color="#eeeeee")
+IconWidget("mdi:home", color_light_theme="#333333", color_dark_theme="#eeeeee")
 ```
 
 只写一个也行，另一种主题下仍然自动跟随。
 
-优先级：**`light_color` / `dark_color` → `color` → 自动跟随**。
+优先级：**`color_light_theme` / `color_dark_theme` → `color` → 自动跟随**。
 
 ### 二、多色图标也能换色、也能跟主题
 
@@ -57,8 +57,8 @@ IconWidget("devicon:google", color={"#4285f4": "#00a0ff"})
 
 ```python
 IconWidget("devicon:google",
-           light_color={"#ffffff": "#f5f5f5"},
-           dark_color={"#ffffff": "#2b2b2b"})
+           color_light_theme={"#ffffff": "#f5f5f5"},
+           color_dark_theme={"#ffffff": "#2b2b2b"})
 ```
 
 **多色图标传单个颜色不会生效**，因为把 Google 图标染成一片红没有意义。想改就用映射表明确说明改哪个。
@@ -219,7 +219,7 @@ uv add pyside-iconify
 2. 解析 Iconify 格式的 JSON，实现 `add_collection`
 3. 生成 SVG 并用 Qt 画出来
 4. 实现 `get_icon`（返回 `QIcon`）和 `IconWidget`
-5. 颜色三参数（`color` / `light_color` / `dark_color`）与映射表换色
+5. 颜色三参数（`color` / `color_light_theme` / `color_dark_theme`）与映射表换色
 6. `opacity` 与透明度相乘规则、禁用变淡
 7. 亮暗主题自动跟随、高分屏按缩放比渲染
 8. `spin` 旋转动画
@@ -245,7 +245,7 @@ uv add pyside-iconify
 - **主要写法是 `IconWidget("mdi:home", color="red")`**，一行可用。
 - `get_icon()` 用于给已有控件设图标，参数与 `IconWidget` 一致。
 - **定位：`QIcon` 的数据来源升级。** 底层产出标准 `QIcon`，能接 `QIcon` 的地方都能用，包括自写组件库。
-- **不填 `color` 时自动跟随亮暗主题**；也可以用 `light_color` / `dark_color` 分别指定，优先级高于 `color`。
+- **不填 `color` 时自动跟随亮暗主题**；也可以用 `color_light_theme` / `color_dark_theme` 分别指定，优先级高于 `color`。
 - **颜色参数可以传一张 `{原色: 新色}` 映射表**，用于多色图标换色；多色图标传单个颜色不生效，保持原配色。
 - **禁用状态用透明度变淡**（默认 0.4），不换成灰色，多色图标也适用。
 - **有 `opacity` 参数**；多个透明度相乘：颜色 alpha × `opacity` × 状态系数。
@@ -285,3 +285,4 @@ uv add pyside-iconify
 | 04-roadmap.md                   | 查阶段任务时       |
 | 05-performance.md               | 关心性能时         |
 | 06-source-structure.md          | 看源码怎么分层时   |
+| 07-offline-pack.md              | 需要完全离线分发时 |

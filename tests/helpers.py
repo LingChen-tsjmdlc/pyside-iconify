@@ -10,8 +10,12 @@ from PySide6.QtWidgets import QApplication, QWidget
 def show_widget(
     qtbot: object, widget: QWidget, width: int = 24, height: int = 24
 ) -> QWidget:
-    """显示顶层控件，以便抓取稳定的渲染结果。"""
+    """显示顶层控件，以便抓取稳定的渲染结果。
+
+    移出 (0,0)：offscreen 平台鼠标位于原点，控件盖在鼠标上会进入悬停态。
+    """
     widget.resize(width, height)
+    widget.move(400, 400)
     qtbot.addWidget(widget)
     widget.show()
     QApplication.processEvents()

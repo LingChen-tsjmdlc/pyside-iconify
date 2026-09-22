@@ -20,8 +20,8 @@ class DefaultConfig:
 
     size: object = 24
     color: object | None = None
-    light_color: object | None = None
-    dark_color: object | None = None
+    color_light_theme: object | None = None
+    color_dark_theme: object | None = None
     opacity: float = 1.0
     fallback: str | None = None
     disabled_opacity: float = 0.4
@@ -43,8 +43,8 @@ def set_default_config(
     *,
     size: object = _UNSET,
     color: object = _UNSET,
-    light_color: object = _UNSET,
-    dark_color: object = _UNSET,
+    color_light_theme: object = _UNSET,
+    color_dark_theme: object = _UNSET,
     opacity: object = _UNSET,
     fallback: object = _UNSET,
     disabled_opacity: object = _UNSET,
@@ -54,8 +54,8 @@ def set_default_config(
     values = {
         "size": _value_or_builtin("size", size),
         "color": _value_or_builtin("color", color),
-        "light_color": _value_or_builtin("light_color", light_color),
-        "dark_color": _value_or_builtin("dark_color", dark_color),
+        "color_light_theme": _value_or_builtin("color_light_theme", color_light_theme),
+        "color_dark_theme": _value_or_builtin("color_dark_theme", color_dark_theme),
         "opacity": _value_or_builtin("opacity", opacity),
         "fallback": _value_or_builtin("fallback", fallback),
         "disabled_opacity": _value_or_builtin("disabled_opacity", disabled_opacity),

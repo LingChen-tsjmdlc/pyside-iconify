@@ -39,8 +39,11 @@ def get_icon(
     *,
     size: object | None = None,
     color: object | None = None,
-    light_color: object | None = None,
-    dark_color: object | None = None,
+    color_light_theme: object | None = None,
+    color_dark_theme: object | None = None,
+    selected_color: object | None = None,
+    selected_color_light_theme: object | None = None,
+    selected_color_dark_theme: object | None = None,
     opacity: float | None = None,
     width: object | None = None,
     height: object | None = None,
@@ -49,14 +52,22 @@ def get_icon(
     h_flip: bool = False,
     v_flip: bool = False,
 ) -> QIcon:
-    """返回可用于任意 Qt 控件的标准 QIcon。"""
+    """返回可用于任意 Qt 控件的标准 QIcon。
+
+    悬停变色不在这里：裸 QIcon 表达不了悬停（样式对图标
+    的 mode 请求不可靠）。按钮悬停用 set_icon(hover_color=...)，
+    控件悬停用 IconWidget(hover_color=...)。
+    """
     require_application()
     require_main_thread()
     options = make_options(
         size=size,
         color=color,
-        light_color=light_color,
-        dark_color=dark_color,
+        color_light_theme=color_light_theme,
+        color_dark_theme=color_dark_theme,
+        selected_color=selected_color,
+        selected_color_light_theme=selected_color_light_theme,
+        selected_color_dark_theme=selected_color_dark_theme,
         opacity=opacity,
         width=width,
         height=height,

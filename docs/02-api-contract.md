@@ -64,30 +64,36 @@ label.setPixmap(get_pixmap("mdi:home", size=24))
 `get_icon` 和 `IconWidget` 的显示参数一致：
 
 ```py
-get_icon(图标名, *, size=24, color=None, light_color=None, dark_color=None,
+get_icon(图标名, *, size=24, color=None, color_light_theme=None, color_dark_theme=None,
+         selected_color=None, selected_color_light_theme=None, selected_color_dark_theme=None,
          opacity=1.0, width=None, height=None, rotate=0, spin=False,
          h_flip=False, v_flip=False)
 
-IconWidget(图标名, *, size=24, color=None, light_color=None, dark_color=None,
+IconWidget(图标名, *, size=24, color=None, color_light_theme=None, color_dark_theme=None,
+           hover_color=None, hover_color_light_theme=None, hover_color_dark_theme=None,
            opacity=1.0, width=None, height=None, rotate=0, spin=False,
            h_flip=False, v_flip=False, qss=None, parent=None)
 ```
 
 `qss` 是 QSS 分组标签：内部写进 Qt 动态属性，不是 Web 风格的额外样式参数。
 
-| 参数                | 说明                                                                      |
-| ------------------- | ------------------------------------------------------------------------- |
-| 图标名              | `"mdi:home"`，或直接给图标数据                                            |
-| `size`              | 大小，默认 24，图形等比居中。可传数字、元组、`QSize`、`"24px"`、`"1.5em"` |
-| `color`             | 颜色，不填则跟随主题。可以是一个颜色，也可以是颜色映射表                  |
-| `light_color`       | 亮色主题下用的颜色，优先于 `color`                                        |
-| `dark_color`        | 暗色主题下用的颜色，优先于 `color`                                        |
-| `opacity`           | 整体透明度，0—1，默认 1.0                                                 |
-| `width` / `height`  | 需要非正方形时才用，优先于 `size`                                         |
-| `rotate`            | 旋转角度，写 `90` 就是 90 度                                              |
-| `spin`              | 持续旋转，用于加载中                                                      |
-| `h_flip` / `v_flip` | 水平 / 垂直翻转                                                           |
-| `qss`               | QSS 分组标签，空格分隔多个值，仅 `IconWidget` 有                          |
+| 参数                                                       | 说明                                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 图标名                                                     | `"mdi:home"`，或直接给图标数据                                            |
+| `size`                                                     | 大小，默认 24，图形等比居中。可传数字、元组、`QSize`、`"24px"`、`"1.5em"` |
+| `color`                                                    | 颜色，不填则跟随主题。可以是一个颜色，也可以是颜色映射表                  |
+| `color_light_theme`                                        | 亮色主题下用的颜色，优先于 `color`                                        |
+| `color_dark_theme`                                         | 暗色主题下用的颜色，优先于 `color`                                        |
+| `selected_color`                                           | 列表/树里被选中时用的颜色（仅 `get_icon`，配合 item view 使用）           |
+| `selected_color_light_theme` / `selected_color_dark_theme` | 同上，按主题分别指定                                                      |
+| `hover_color`                                              | 鼠标悬停时用的颜色（仅 `IconWidget`；按钮悬停见 `set_icon`）              |
+| `hover_color_light_theme` / `hover_color_dark_theme`       | 同上，按主题分别指定                                                      |
+| `opacity`                                                  | 整体透明度，0—1，默认 1.0                                                 |
+| `width` / `height`                                         | 需要非正方形时才用，优先于 `size`                                         |
+| `rotate`                                                   | 旋转角度，写 `90` 就是 90 度                                              |
+| `spin`                                                     | 持续旋转，用于加载中                                                      |
+| `h_flip` / `v_flip`                                        | 水平 / 垂直翻转                                                           |
+| `qss`                                                      | QSS 分组标签，空格分隔多个值，仅 `IconWidget` 有                          |
 
 三个颜色参数都接受：颜色名 / HEX 3·4·6·8 位 / `rgb()` / `rgba()` / `hsl()` / `hsla()` / 元组 / `QColor`，或一张 `{原色: 新色}` 的映射表。
 
@@ -352,34 +358,34 @@ IconWidget("mdi:loading", spin=True, spin_period=0.8)   # 每圈 0.8 秒
 
 ### 想给亮暗指定不同颜色
 
-用 `light_color` 和 `dark_color`：
+用 `color_light_theme` 和 `color_dark_theme`：
 
 ```python
-IconWidget("mdi:home", light_color="#333333", dark_color="#eeeeee")
+IconWidget("mdi:home", color_light_theme="#333333", color_dark_theme="#eeeeee")
 ```
 
 只写一个也行，另一种主题下回退到自动跟随：
 
 ```python
-IconWidget("mdi:home", dark_color="#eeeeee")   # 亮色主题仍自动跟随
+IconWidget("mdi:home", color_dark_theme="#eeeeee")   # 亮色主题仍自动跟随
 ```
 
 ### 三个颜色参数的优先级
 
 ```text
-light_color / dark_color  →  color  →  自动跟随主题
+color_light_theme / color_dark_theme  →  color  →  自动跟随主题
 ```
 
 当前主题对应的那个参数优先。举例：
 
 ```python
-IconWidget("mdi:home", color="red", dark_color="#eeeeee")
+IconWidget("mdi:home", color="red", color_dark_theme="#eeeeee")
 ```
 
 - 亮色主题 → 红色（用 `color`）
-- 暗色主题 → 浅灰（用 `dark_color`）
+- 暗色主题 → 浅灰（用 `color_dark_theme`）
 
-**`color` 相当于「两种主题的默认值」**，`light_color` / `dark_color` 是对单个主题的覆盖。
+**`color` 相当于「两种主题的默认值」**，`color_light_theme` / `color_dark_theme` 是对单个主题的覆盖。
 
 ### 什么时候不会自动跟随
 
@@ -422,8 +428,8 @@ IconWidget("devicon:google", color={"#4285f4": "#00a0ff"})   # 只换蓝色，�
 
 ```python
 IconWidget("devicon:google",
-           light_color={"#ffffff": "#f5f5f5"},
-           dark_color={"#ffffff": "#2b2b2b"})
+           color_light_theme={"#ffffff": "#f5f5f5"},
+           color_dark_theme={"#ffffff": "#2b2b2b"})
 ```
 
 适合图标里有白底、白描边的情况——暗色主题下把白色换掉，不然会很刺眼。
@@ -449,7 +455,7 @@ add_icon("app:google-blue", data)
 
 ## 2.3 方法和信号
 
-方法：`setIcon`、`setSize`、`setColor`、`setLightColor`、`setDarkColor`、`setOpacity`、`setRotation`、`setSpin`、`setFlips`。
+方法：`setIcon`、`setSize`、`setColor`、`setColorLightTheme`、`setColorDarkTheme`、`setOpacity`、`setRotation`、`setSpin`、`setFlips`。
 
 查询用：
 
@@ -626,7 +632,7 @@ from pyside_iconify import set_default_config
 set_default_config(
     size=20,
     color="#333333",
-    dark_color="#dddddd",
+    color_dark_theme="#dddddd",
     fallback="mdi:help-circle",
 )
 ```
@@ -635,14 +641,14 @@ set_default_config(
 
 可以设的项：
 
-| 项目                                   | 说明                     |
-| -------------------------------------- | ------------------------ |
-| `size`                                 | 默认大小                 |
-| `color` / `light_color` / `dark_color` | 默认颜色                 |
-| `opacity`                              | 默认透明度               |
-| `fallback`                             | 图标不存在时的替代图标   |
-| `disabled_opacity`                     | 禁用时的透明度，默认 0.4 |
-| `spin_period`                          | 动画周期，默认 1 秒      |
+| 项目                                               | 说明                     |
+| -------------------------------------------------- | ------------------------ |
+| `size`                                             | 默认大小                 |
+| `color` / `color_light_theme` / `color_dark_theme` | 默认颜色                 |
+| `opacity`                                          | 默认透明度               |
+| `fallback`                                         | 图标不存在时的替代图标   |
+| `disabled_opacity`                                 | 禁用时的透明度，默认 0.4 |
+| `spin_period`                                      | 动画周期，默认 1 秒      |
 
 规则：
 
@@ -679,9 +685,20 @@ from pyside_iconify import set_icon
 
 set_icon(button, "mdi:home")
 set_icon(tab_widget, "mdi:file", 0)
+
+# 按钮悬停变色：写 hover_color 系参数才启用，不写就没有悬停效果
+set_icon(button, "mdi:home", hover_color="#d1242f")
+set_icon(button, "mdi:home",
+         hover_color_light_theme="#0969da",
+         hover_color_dark_theme="#58a6ff")
 ```
 
 **这只是便利函数，不是必需路径。** 直接 `setIcon(get_icon(...))` 效果一样，而且更直白。所以它不支持的目标类型，也不影响你使用——`get_icon` 本身没有类型限制。
+
+两个只有 `set_icon` 才有的能力（`get_icon` 给不了，别绕过它）：
+
+- **按钮悬停变色**：Qt 样式对按钮图标的 mode 请求不可靠，裸 `QIcon` 表达不了悬停，`set_icon` 内部用事件切换两份图标实现
+- 目标是按钮时才会启用；列表/树的选中变色走 `get_icon` 的 `selected_color`
 
 ### 不接受的 QIcon 的目标
 
@@ -715,6 +732,18 @@ icon = IconWidget("app:square", size=24, color="red")
 注册过的图标直接显示，不联网、不查缓存。格式与官方 JSON 一致，所以从 Iconify 仓库挑出来的数据可以直接用。
 
 **本地注册优先于网络。** 同名图标以注册的为准，不会被下载结果覆盖。
+
+### 完全离线发布（可选，特殊场景）
+
+图标默认按需从网络获取，这是主路径。如果程序要跑在断网或内网环境，可以用打包工具在发布前把用到的图标固化下来，一条命令扫描 + 打包，运行时一行加载：
+
+```python
+from pyside_iconify import load_bundle
+
+load_bundle("icons.json")
+```
+
+详细用法见[离线打包文档](07-offline-pack.md)。
 
 ## 2.8 高级用法
 
@@ -881,7 +910,7 @@ logging.getLogger("pyside_iconify").setLevel(logging.DEBUG)
 - 颜色统一先解析成 `QColor` 再用，不把用户传的字符串直接塞进 SVG。颜色名和 3 / 6 位 HEX 可以直接交给 `QColor`；**带透明度的 HEX 必须自己解析**，因为默认按 `#RRGGBBAA` 而 `QColor` 按 `#AARRGGBB`。`rgb()` / `rgba()` / `hsl()` / `hsla()` 函数式写法 Qt 也不认，同样自己解析。
 - `hex_argb()` / `hex_rgba()` 返回已解析好的颜色对象，不是字符串，避免再次被当成默认顺序解析。
 - 颜色映射表的键按解析后的颜色值匹配，不按字符串比较，大小写和写法差异都要能匹配上。
-- 颜色的选取顺序固定为：当前主题的 `light_color` / `dark_color` → `color` → 主题跟随色。三者都可以是单值或映射表，处理逻辑一致。
+- 颜色的选取顺序固定为：当前主题的 `color_light_theme` / `color_dark_theme` → `color` → 主题跟随色。三者都可以是单值或映射表，处理逻辑一致。
 - 生效的颜色参数（含映射表内容）参与渲染缓存的键；主题切换要让缓存失效，不能沿用上一主题的位图。
 - 映射表里图标中不存在的颜色静默跳过，不报错；但整个表都没匹配上时要能通过 `get_icon_colors` 自查，不留下「改了没反应」的黑盒。
 - 只改颜色或大小时，不重新下载，也不中断正在进行的加载。

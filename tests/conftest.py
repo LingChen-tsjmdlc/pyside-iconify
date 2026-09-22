@@ -63,8 +63,8 @@ def reset_library_state(qtbot: object) -> None:
     set_default_config(
         size=None,
         color=None,
-        light_color=None,
-        dark_color=None,
+        color_light_theme=None,
+        color_dark_theme=None,
         opacity=None,
         fallback=None,
         disabled_opacity=None,

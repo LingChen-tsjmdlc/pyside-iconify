@@ -19,8 +19,14 @@ def make_options(
     *,
     size: object | None = None,
     color: ColorValue | None = None,
-    light_color: ColorValue | None = None,
-    dark_color: ColorValue | None = None,
+    color_light_theme: ColorValue | None = None,
+    color_dark_theme: ColorValue | None = None,
+    hover_color: ColorValue | None = None,
+    hover_color_light_theme: ColorValue | None = None,
+    hover_color_dark_theme: ColorValue | None = None,
+    selected_color: ColorValue | None = None,
+    selected_color_light_theme: ColorValue | None = None,
+    selected_color_dark_theme: ColorValue | None = None,
     opacity: float | None = None,
     disabled_opacity: float | None = None,
     spin: bool = False,
@@ -35,8 +41,8 @@ def make_options(
     defaults = get_default_config()
     actual_size = defaults.size if size is None else size
     actual_color = defaults.color if color is None else color
-    actual_light = defaults.light_color if light_color is None else light_color
-    actual_dark = defaults.dark_color if dark_color is None else dark_color
+    actual_light = defaults.color_light_theme if color_light_theme is None else color_light_theme
+    actual_dark = defaults.color_dark_theme if color_dark_theme is None else color_dark_theme
     actual_opacity = defaults.opacity if opacity is None else opacity
     actual_disabled_opacity = (
         defaults.disabled_opacity if disabled_opacity is None else disabled_opacity
@@ -56,8 +62,14 @@ def make_options(
     return IconOptions(
         size=resolved_size,
         color=normalize_color_value(actual_color),
-        light_color=normalize_color_value(actual_light),
-        dark_color=normalize_color_value(actual_dark),
+        color_light_theme=normalize_color_value(actual_light),
+        color_dark_theme=normalize_color_value(actual_dark),
+        hover_color=normalize_color_value(hover_color),
+        hover_color_light_theme=normalize_color_value(hover_color_light_theme),
+        hover_color_dark_theme=normalize_color_value(hover_color_dark_theme),
+        selected_color=normalize_color_value(selected_color),
+        selected_color_light_theme=normalize_color_value(selected_color_light_theme),
+        selected_color_dark_theme=normalize_color_value(selected_color_dark_theme),
         opacity=_opacity(actual_opacity),
         disabled_opacity=_opacity(actual_disabled_opacity),
         spin=bool(spin),

@@ -169,7 +169,7 @@ def _theme_style(dark: bool) -> str:
 
 def build_window() -> QWidget:
     """创建 Step 1 演示窗口。"""
-    set_default_config(size=24, color=None, light_color=None, dark_color=None)
+    set_default_config(size=24, color=None, color_light_theme=None, color_dark_theme=None)
     window = QWidget()
     window.setObjectName("demoWindow")
     window.setWindowTitle("pyside-iconify · Step 1 功能演示")
@@ -298,8 +298,8 @@ def build_window() -> QWidget:
         "demo:home",
         size=42,
         color="#57606a",
-        light_color="#8250df",
-        dark_color="#1a7f37",
+        color_light_theme="#8250df",
+        color_dark_theme="#1a7f37",
     )
     disabled = IconWidget("demo:home", size=42, color="#d1242f", opacity=0.5)
     disabled.setEnabled(False)
@@ -308,7 +308,7 @@ def build_window() -> QWidget:
             (original, "多色 + 单色参数\n保持原配色"),
             (mapped, "颜色映射表\n只替换蓝色"),
             (theme_icon, "不传 color\n跟随主题文字色"),
-            (theme_override, "light_color / dark_color\n优先于 color"),
+            (theme_override, "color_light_theme / color_dark_theme\n优先于 color"),
             (disabled, "opacity=0.5\n禁用后继续变淡"),
         ]
     ):
