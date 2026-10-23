@@ -73,5 +73,16 @@ Maintainers only. All build/publish commands are run by a maintainer.
     - no secrets, tokens, or local paths
     - `py.typed` present in the wheel
     - `LICENSE` and README present in the sdist
-4. Upload to TestPyPI, install from it in a clean venv, run a smoke demo.
-5. Upload to PyPI and tag the release (`git tag vX.Y.Z && git push --tags`).
+4. Bump `__version__` in `src/pyside_iconify/__init__.py`, commit and push.
+5. Tag and push the tag; the publish workflow does the rest (build, wait for
+   approval of the `pypi-release` environment, upload to PyPI, then create
+   the GitHub Release with generated notes):
+
+    ```powershell
+    git tag v1.0.0
+    git push origin v1.0.0
+    ```
+
+   The tag must equal `v` + `__version__`, otherwise the build job fails.
+   To rehearse on TestPyPI, run the "Publish to PyPI" workflow manually and
+   choose `testpypi`.
