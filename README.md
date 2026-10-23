@@ -1,107 +1,145 @@
 # pyside-iconify
 
-**给 `QIcon` 换一个数据来源。**
+**Give `QIcon` a data source.**
+
+English | [中文](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.zh-CN.md) | [日本語](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.ja.md) | [한국어](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.ko.md) | [Español](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.es.md) | [Français](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.fr.md) | [Deutsch](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.de.md) | [Русский](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.ru.md) | [Português (BR)](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/readme/README.pt-BR.md)
 
 ```python
 IconWidget("mdi:home", color="red")
 ```
 
-不用准备 SVG 或 PNG 文件，直接用图标名。需要交给已有控件时，仍然得到标准 `QIcon`。
+One line, one icon. No SVG or PNG files to manage — icons are fetched on demand
+from the [Iconify](https://iconify.design) ecosystem by name and cached
+automatically. Everything still ends up as a standard `QIcon`, so it works with
+any widget that accepts icons.
 
-> 状态：开发中，尚未发布到 PyPI。离线能力已实现，可运行 `examples/step1_demo.py` 查看；联网按需下载尚未实现，公开接口在首次发布前可能调整。
+> **Status**: under active development, not yet published to PyPI. The public
+> API may still change before the first release.
 >
-> 本项目**不是 Iconify 官方项目**。
+> This project is **not** affiliated with the Iconify project.
 
-## 为什么用它
+## Why
 
-| 原来                              | pyside-iconify                                |
-| --------------------------------- | --------------------------------------------- |
-| `QIcon("assets/home.svg")`        | `get_icon("mdi:home")`                        |
-| 自己管理 SVG / PNG 文件和资源路径 | 通过图标名或本地 Iconify JSON 获取数据        |
-| 多套图标文件处理颜色和尺寸        | `color`、`size` 等参数                        |
-| 不同控件要自己处理图标来源        | 返回标准 `QIcon`，任何接收 QIcon 的控件都能用 |
+| Without                                   | With pyside-iconify                        |
+| ----------------------------------------- | ------------------------------------------ |
+| `QIcon("assets/home.svg")`                | `get_icon("mdi:home")`                     |
+| Managing SVG/PNG files and resource paths | Icons by name from the Iconify ecosystem   |
+| Multiple asset sets for colors and sizes  | `color`, `size`, `rotate` as parameters    |
+| Per-widget icon plumbing                  | Standard `QIcon`, works everywhere         |
+| Manual light/dark theme icon variants     | Follows the widget's palette automatically |
 
-## 目标用法
-
-### 独立摆放图标
-
-```python
-from pyside_iconify import IconWidget
-
-icon = IconWidget("mdi:home", size=24, color="red")
-layout.addWidget(icon)
-```
-
-### 给已有控件设置图标
-
-```python
-from pyside_iconify import get_icon
-
-button.setIcon(get_icon("mdi:home", size=24, color="red"))
-```
-
-### 完全离线使用
-
-图标数据由你提供，运行时不联网：
-
-```python
-from pyside_iconify import IconWidget, add_collection
-
-add_collection({
-    "prefix": "app",
-    "width": 16,
-    "height": 16,
-    "icons": {
-        "square": {
-            "body": '<rect x="2" y="2" width="12" height="12" fill="currentColor"/>'
-        }
-    },
-})
-
-icon = IconWidget("app:square", size=24, color="red")
-```
-
-### 运行示例
-
-```powershell
-python examples/step1_demo.py
-```
-
-## 设计目标
-
-- `IconWidget("mdi:home", color="red")` 一行可用
-- `get_icon()` 返回标准 `QIcon`
-- 不填颜色时跟随 Qt 亮暗主题和控件文字颜色
-- 多色图标支持 `{原色: 新色}` 映射表
-- 高分屏按设备缩放比渲染
-- 加载中显示空白，确认缺失或错误才显示占位图
-- 支持 Qt 原生 QSS：`qss` 用于分组，具体样式用 `setStyleSheet()`
-- 离线优先，联网下载和磁盘缓存留到 Step 2
-
-## 支持范围
-
-| 项目                 | 计划范围           |
-| -------------------- | ------------------ |
-| Python               | 3.10 — 3.14        |
-| Qt 绑定              | PySide6            |
-| 操作系统             | 先验证 Windows x64 |
-| PySide2 / PyQt / QML | 暂不支持           |
-
-这些是目标范围，不代表已经完成验证。
-
-## 安装
-
-首次发布到 PyPI 后：
+## Quick start
 
 ```powershell
 pip install "pyside-iconify[pyside6]"
 ```
 
-当前从源码开发时，参考[版本支持与发布](docs/03-compatibility-and-release.md)。
+```python
+from PySide6.QtWidgets import QApplication, QPushButton
+from pyside_iconify import IconWidget, get_icon
 
-## 测试
+app = QApplication([])
 
-测试使用 `pytest` 与 `pytest-qt`。从源码开发时先由你安装测试组：
+# A standalone icon widget
+icon = IconWidget("mdi:home", size=24, color="red")
+
+# Or hand a standard QIcon to any widget
+button = QPushButton("Settings")
+button.setIcon(get_icon("mdi:cog", size=20))
+
+app.exec()
+```
+
+That is the whole API for the common case. Icons are downloaded on first use,
+cached on disk, and rendered locally afterwards.
+
+## Highlights
+
+- **Theme aware** — with no color set, icons follow the widget's text color and
+  switch automatically between light and dark themes; disabled icons fade
+  instead of turning gray (so multi-color icons fade correctly too)
+- **Full color control** — single color, `{original: replacement}` mapping for
+  multi-color icons, and per-theme overrides (`color_light_theme` /
+  `color_dark_theme`)
+- **Sizes the way you think** — numbers, `(w, h)`, `QSize`, `"24px"`, or
+  `"1.5em"` (follows the widget's font)
+- **HiDPI native** — sizes are logical pixels; physical pixels are rendered
+  per screen scale factor, no @2x/@3x asset sets
+- **Loading vs. missing are distinct** — loading shows blank, a confirmed miss
+  shows a built-in placeholder and emits `failed`; optional `fallback` icon
+- **QSS friendly** — `qss="toolbar primary"` tags for grouping, style with
+  native `setStyleSheet()`; priority: parameters → QSS → theme
+- **Typed and logged** — full type hints with `py.typed`, standard `logging`
+  (silent by default)
+
+## Parameters
+
+Shared by `IconWidget` and `get_icon`:
+
+```python
+get_icon(name, *, size=24, color=None, color_light_theme=None,
+         color_dark_theme=None, selected_color=None, opacity=1.0,
+         width=None, height=None, rotate=0, spin=False,
+         h_flip=False, v_flip=False)
+
+IconWidget(name, *, ..., hover_color=None, qss=None, parent=None)
+```
+
+| Parameter                                | Meaning                                                                |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| `name`                                   | Icon name like `"mdi:home"`, or inline icon data                       |
+| `size`                                   | Number, `(w, h)`, `QSize`, `"24px"`, or `"1.5em"`                      |
+| `color`                                  | A color, or a `{original: replacement}` mapping                        |
+| `color_light_theme` / `color_dark_theme` | Per-theme overrides, win over `color`                                  |
+| `selected_color`                         | Color when the item is selected (item views)                           |
+| `hover_color`                            | IconWidget / `set_icon` hover color — explicit opt-in                  |
+| `opacity`                                | Overall opacity 0–1; multiplied with color alpha                       |
+| `width` / `height`                       | Non-square icons; win over `size`                                      |
+| `rotate`                                 | Any angle in degrees, auto-shrunk to avoid clipping                    |
+| `spin`                                   | Continuous rotation for loading indicators                             |
+| `h_flip` / `v_flip`                      | Horizontal / vertical flip                                             |
+| `qss`                                    | QSS grouping tags, `IconWidget[qss~="tag"]` selector (IconWidget only) |
+
+Colors accept CSS/SVG names, HEX 3/4/6/8 digit (`#RRGGBBAA` order),
+`rgb()/rgba()/hsl()/hsla()`, tuples, `QColor`, and `Qt.GlobalColor`.
+Unparseable colors raise instead of silently turning black.
+
+## Offline packaging
+
+For air-gapped machines or zero-external-dependency builds, pack icons at
+release time:
+
+```powershell
+python -m pyside_iconify.pack -o icons.json
+```
+
+```python
+from pyside_iconify import load_bundle
+
+load_bundle("icons.json")  # at app startup; works inside PyInstaller too
+```
+
+See `src/pyside_iconify/pack.py` and `tests/test_pack_integration.py` for the
+full CLI and API. Local data always takes priority over the network.
+
+## Performance
+
+Three-layer cache (icon data → SVG text → rendered bitmaps) with a memory
+budget, per-frame work kept to a cache lookup and one `drawPixmap`. A 1000-row
+`QListWidget` builds in ~270 ms and scrolls at native speed. For large grids
+use item views with `get_icon`; `IconWidget` is meant for standalone icon
+slots.
+
+## Support scope
+
+| Item         | Scope                             |
+| ------------ | --------------------------------- |
+| Python       | 3.10 – 3.14                       |
+| Qt binding   | PySide6                           |
+| OS           | Windows, macOS, Linux (CI on macOS) |
+| PySide2/PyQt | Not supported (PyQt6 maybe later) |
+
+## Development
 
 ```powershell
 uv sync --extra pyside6 --group test
@@ -109,22 +147,12 @@ $env:QT_QPA_PLATFORM = "offscreen"
 pytest -v
 ```
 
-测试覆盖离线数据、颜色、QIcon、IconWidget、QSS、loading、fallback、线程和缓存等 Step 1 回归项。GitHub Actions 会在 Python 3.10 与 3.13 上运行同一套离屏测试。
+- Contributing guide and release checklist: [CONTRIBUTING.md](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/CONTRIBUTING.md)
+- Architecture and design decisions: [docs/architecture.md](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/architecture.md)
+- Roadmap: [docs/roadmap.md](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/docs/roadmap.md)
+- Benchmark: `uv run benchmarks/list_scroll.py`
 
-## 文档
+## License
 
-| 文档                                                   | 内容                        |
-| ------------------------------------------------------ | --------------------------- |
-| [开始这里](docs/00-start.md)                           | 日常使用和当前状态          |
-| [它是怎么工作的](docs/01-design.md)                    | Iconify 数据与 Qt 渲染原理  |
-| [接口设计](docs/02-api-contract.md)                    | 参数、颜色、QSS、异常、线程 |
-| [版本支持与发布](docs/03-compatibility-and-release.md) | 依赖与发布计划              |
-| [开发计划](docs/04-roadmap.md)                         | Step 0—4 与验收项           |
-| [性能](docs/05-performance.md)                         | 缓存、性能目标和基准测试    |
-| [源码结构](docs/06-source-structure.md)                | 分层和依赖方向              |
-
-## 许可证
-
-本库代码采用 [MIT](LICENSE)。
-
-图标素材遵循各自图标集合的许可；Qt / PySide 也有独立许可要求。若将来引入 Iconify 上游代码，会保留上游版权声明。
+[MIT](https://github.com/LingChen-tsjmdlc/pyside-iconify/blob/main/LICENSE). Icon collections are subject to their own licenses; Qt is
+licensed separately by its copyright holders.

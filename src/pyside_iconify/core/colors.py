@@ -16,17 +16,48 @@ _HSL = re.compile(r"^hsla?\((.*)\)$", re.IGNORECASE)
 
 
 def hex_rgba(value: str) -> RGBA:
-    """按 CSS 的 #RRGGBBAA 顺序解析十六进制颜色。"""
+    """按 CSS 的 #RRGGBBAA 顺序解析十六进制颜色。
+
+    Args:
+        value: 十六进制颜色文本；可传 `#RGB`、`#RGBA`、`#RRGGBB`、`#RRGGBBAA`，`#` 可省略。
+
+    Returns:
+        解析后的 RGBA 颜色；无透明度部分时不透明度取 RGBA 默认值。
+
+    Raises:
+        InvalidColorError: 文本不是合法的十六进制颜色。
+    """
     return _parse_hex(value, alpha_last=True)
 
 
 def hex_argb(value: str) -> RGBA:
-    """按 Qt 的 #AARRGGBB 顺序解析十六进制颜色。"""
+    """按 Qt 的 #AARRGGBB 顺序解析十六进制颜色。
+
+    Args:
+        value: 十六进制颜色文本；可传 `#RGB`、`#ARGB`、`#RRGGBB`、`#AARRGGBB`，`#` 可省略。
+
+    Returns:
+        解析后的 RGBA 颜色；无透明度部分时不透明度取 RGBA 默认值。
+
+    Raises:
+        InvalidColorError: 文本不是合法的十六进制颜色。
+    """
     return _parse_hex(value, alpha_last=False)
 
 
 def parse_color(value: str | Sequence[int | float] | RGBA) -> RGBA:
-    """解析 CSS 函数、默认 RGBA HEX、元组或 RGBA。"""
+    """解析 CSS 函数、默认 RGBA HEX、元组或 RGBA。
+
+    Args:
+        value: 颜色值；可传 RGBA 对象（原样返回）、`transparent`、十六进制文本（按 #RRGGBBAA 顺序）、
+            `rgb()`/`rgba()`/`hsl()`/`hsla()` 文本，或 3 到 4 个数字的序列。
+
+    Returns:
+        解析后的 RGBA 颜色。
+
+    Raises:
+        InvalidColorError: 值无法识别为颜色。
+    """
     if isinstance(value, RGBA):
         return value
     if isinstance(value, str):
@@ -46,6 +77,18 @@ def parse_color(value: str | Sequence[int | float] | RGBA) -> RGBA:
 
 
 def _parse_hex(value: str, *, alpha_last: bool) -> RGBA:
+    """解析十六进制颜色文本。
+
+    Args:
+        value: 十六进制颜色文本；首尾空白会被去除，`#` 可省略。
+        alpha_last: 透明度位置；True 表示在末尾（RRGGBBAA），False 表示在开头（AARRGGBB）。
+
+    Returns:
+        解析后的 RGBA 颜色；3 位和 4 位写法每位重复一次后再解析。
+
+    Raises:
+        InvalidColorError: 文本不是合法的十六进制颜色。
+    """
     match = _HEX.fullmatch(value.strip())
     if match is None:
         raise InvalidColorError(f"invalid HEX color: {value!r}")
@@ -70,6 +113,17 @@ def _parse_hex(value: str, *, alpha_last: bool) -> RGBA:
 
 
 def _parse_rgb(value: str) -> RGBA:
+    """解析 `rgb()` 或 `rgba()` 文本。
+
+    Args:
+        value: 逗号分隔的 `rgb(...)`/`rgba(...)` 文本；通道为 0 到 255 的整数或百分比，透明度为 0 到 1 的数或百分比。
+
+    Returns:
+        解析后的 RGBA 颜色；省略透明度时为 255。
+
+    Raises:
+        InvalidColorError: 文本格式不符，或参数个数不是 3 或 4。
+    """
     match = _RGB.fullmatch(value.strip())
     if match is None:
         raise InvalidColorError(f"invalid RGB color: {value!r}")
@@ -82,6 +136,17 @@ def _parse_rgb(value: str) -> RGBA:
 
 
 def _parse_hsl(value: str) -> RGBA:
+    """解析 `hsl()` 或 `hsla()` 文本。
+
+    Args:
+        value: 逗号分隔的 `hsl(...)`/`hsla(...)` 文本；色相为有限数字（按 360 取模），饱和度和亮度为百分比，透明度为 0 到 1 的数或百分比。
+
+    Returns:
+        解析后的 RGBA 颜色；省略透明度时为 255。
+
+    Raises:
+        InvalidColorError: 文本格式不符，或参数个数不是 3 或 4。
+    """
     match = _HSL.fullmatch(value.strip())
     if match is None:
         raise InvalidColorError(f"invalid HSL color: {value!r}")
@@ -97,6 +162,17 @@ def _parse_hsl(value: str) -> RGBA:
 
 
 def _parse_tuple(value: Sequence[int | float]) -> RGBA:
+    """解析数字序列形式的颜色。
+
+    Args:
+        value: 3 或 4 个 0 到 255 的整数，依次为红、绿、蓝和可选的透明度。
+
+    Returns:
+        解析后的 RGBA 颜色；省略透明度时为 255。
+
+    Raises:
+        InvalidColorError: 序列长度不是 3 或 4。
+    """
     if len(value) not in (3, 4):
         raise InvalidColorError("color tuple requires three or four integers")
     channels = [_parse_channel(channel) for channel in value[:3]]
@@ -105,6 +181,17 @@ def _parse_tuple(value: Sequence[int | float]) -> RGBA:
 
 
 def _parse_channel(value: str | int | float) -> int:
+    """解析单个颜色通道。
+
+    Args:
+        value: 通道值；可传 0 到 255 的整数（含整数值的浮点数或数字文本），或 `0%` 到 `100%` 的百分比文本。
+
+    Returns:
+        0 到 255 的整数通道值。
+
+    Raises:
+        InvalidColorError: 通道值超出范围、不是整数或不是有限数字。
+    """
     if isinstance(value, str) and value.endswith("%"):
         return round(_parse_percent(value) * 255)
     number = _finite_number(value)
@@ -114,6 +201,17 @@ def _parse_channel(value: str | int | float) -> int:
 
 
 def _parse_alpha(value: str | int | float) -> int:
+    """解析透明度。
+
+    Args:
+        value: 透明度；可传 0 到 1 的数字（或数字文本），或 `0%` 到 `100%` 的百分比文本。
+
+    Returns:
+        0 到 255 的整数透明度。
+
+    Raises:
+        InvalidColorError: 透明度超出范围或不是有限数字。
+    """
     if isinstance(value, str) and value.endswith("%"):
         return round(_parse_percent(value) * 255)
     number = _finite_number(value)
@@ -123,6 +221,17 @@ def _parse_alpha(value: str | int | float) -> int:
 
 
 def _parse_percent(value: str | int | float) -> float:
+    """解析百分比文本。
+
+    Args:
+        value: 以 `%` 结尾的文本，数值范围 0 到 100。
+
+    Returns:
+        0 到 1 的小数。
+
+    Raises:
+        InvalidColorError: 值不是百分比文本或超出范围。
+    """
     if not isinstance(value, str) or not value.endswith("%"):
         raise InvalidColorError("a percentage is required")
     number = _finite_number(value[:-1])
@@ -132,6 +241,17 @@ def _parse_percent(value: str | int | float) -> float:
 
 
 def _finite_number(value: str | int | float) -> float:
+    """将值转换为有限浮点数。
+
+    Args:
+        value: 待转换的数字或数字文本。
+
+    Returns:
+        转换后的浮点数。
+
+    Raises:
+        InvalidColorError: 值无法转换为数字，或为无穷大/NaN。
+    """
     try:
         number = float(value)
     except (TypeError, ValueError) as error:

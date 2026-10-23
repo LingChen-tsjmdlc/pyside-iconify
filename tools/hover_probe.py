@@ -1,6 +1,6 @@
 """hover 诊断探针（事件驱动版）：验证按钮悬停换图是否生效。
 
-用法：uv run examples/hover_probe.py
+用法：uv run tools/hover_probe.py
 把鼠标移到按钮上再移开，看控制台输出和按钮图标颜色变化。
 """
 

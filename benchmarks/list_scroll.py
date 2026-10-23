@@ -1,7 +1,7 @@
 """列表滚动与图标选择器性能演示。
 
 数量可调、实时重建，滚动时右侧显示当前/平均帧率。
-运行：uv run tests/benchmark/list_scroll.py
+运行：uv run benchmarks/list_scroll.py
 """
 
 from __future__ import annotations

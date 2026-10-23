@@ -16,7 +16,18 @@ _UNSET: Final = object()
 
 @dataclass(frozen=True, slots=True)
 class DefaultConfig:
-    """默认值。"""
+    """新建图标时使用的全局默认配置。
+
+    Attributes:
+        size: 默认图标尺寸；可传数字、``"16px"``/``"1.5em"`` 字符串或 (宽, 高) 序列。
+        color: 默认颜色；None 表示不指定。
+        color_light_theme: 浅色主题下的默认颜色；None 表示不指定。
+        color_dark_theme: 深色主题下的默认颜色；None 表示不指定。
+        opacity: 默认不透明度；0 到 1。
+        fallback: 图标加载失败时显示的后备图标名；None 表示不使用后备图标。
+        disabled_opacity: 禁用状态的不透明度；0 到 1。
+        spin_period: 旋转一圈所需的秒数；须为有限正数。
+    """
 
     size: object = 24
     color: object | None = None
@@ -34,7 +45,11 @@ _config = _BUILTIN
 
 
 def get_default_config() -> DefaultConfig:
-    """返回当前默认值。"""
+    """返回当前默认配置。
+
+    Returns:
+        当前生效的 DefaultConfig。
+    """
     with _lock:
         return _config
 
@@ -50,7 +65,23 @@ def set_default_config(
     disabled_opacity: object = _UNSET,
     spin_period: object = _UNSET,
 ) -> DefaultConfig:
-    """更新新图标的默认值。"""
+    """更新新图标的默认配置。
+
+    未传入的参数保持当前值；传入 None 则恢复为内置默认值。
+
+    Args:
+        size: 默认尺寸；可传数字、``"16px"``/``"1.5em"`` 字符串或 (宽, 高) 序列。
+        color: 默认颜色。
+        color_light_theme: 浅色主题下的默认颜色。
+        color_dark_theme: 深色主题下的默认颜色。
+        opacity: 默认不透明度；0 到 1。
+        fallback: 后备图标名；格式为 ``prefix:name``。
+        disabled_opacity: 禁用状态的不透明度；0 到 1。
+        spin_period: 旋转一圈所需的秒数；须为有限正数。
+
+    Returns:
+        更新后的 DefaultConfig。
+    """
     values = {
         "size": _value_or_builtin("size", size),
         "color": _value_or_builtin("color", color),
@@ -69,11 +100,24 @@ def set_default_config(
 
 
 def set_disabled_opacity(value: float) -> None:
-    """设置禁用透明度。"""
+    """设置禁用状态的默认不透明度。
+
+    Args:
+        value: 不透明度；0 到 1。
+    """
     set_default_config(disabled_opacity=value)
 
 
 def _value_or_builtin(name: str, value: object) -> object:
+    """按字段名解析最终值：未设置取当前值，None 取内置默认值，否则原样返回。
+
+    Args:
+        name: 配置字段名。
+        value: 调用方传入的值；_UNSET 表示未传，None 表示恢复内置默认值。
+
+    Returns:
+        解析后的最终值。
+    """
     if value is _UNSET:
         return getattr(_config, name)
     if value is None:
@@ -82,6 +126,14 @@ def _value_or_builtin(name: str, value: object) -> object:
 
 
 def _opacity(value: object) -> None:
+    """校验不透明度是 0 到 1 之间的数字。
+
+    Args:
+        value: 待校验的值。
+
+    Raises:
+        InvalidOpacityError: 不是数字（含布尔值）或超出 0 到 1。
+    """
     if (
         isinstance(value, bool)
         or not isinstance(value, (int, float))
@@ -91,6 +143,14 @@ def _opacity(value: object) -> None:
 
 
 def _validate(values: dict[str, object]) -> None:
+    """校验一组配置字段的取值。
+
+    Args:
+        values: 字段名到取值的映射；须包含 size、opacity、disabled_opacity、spin_period、fallback。
+
+    Raises:
+        InvalidRotationError: spin_period 不是有限正数。
+    """
     parse_size(values["size"])
     _opacity(values["opacity"])
     _opacity(values["disabled_opacity"])

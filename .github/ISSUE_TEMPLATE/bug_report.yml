@@ -1,0 +1,65 @@
+name: Bug report
+description: Report something that renders wrong, crashes, or errors unexpectedly
+labels: ["bug"]
+body:
+    - type: markdown
+      attributes:
+          value: >
+              Thanks for taking the time to file a bug. Please fill in the
+              details below — a minimal reproducer is the fastest path to a fix.
+    - type: textarea
+      id: description
+      attributes:
+          label: What happened?
+          description: >
+              What you expected vs. what actually happened. Include exact
+              error messages/tracebacks if any.
+      validations:
+          required: true
+    - type: textarea
+      id: reproducer
+      attributes:
+          label: Minimal reproducer
+          placeholder: |
+              from PySide6.QtWidgets import QApplication
+              from pyside_iconify import IconWidget
+
+              app = QApplication([])
+              icon = IconWidget("mdi:home", size=24, color="red")
+              # ... fewest lines that show the problem
+      validations:
+          required: true
+    - type: input
+      id: versions
+      attributes:
+          label: Environment
+          placeholder: "Python 3.12, PySide6 6.8, Windows 11, pyside-iconify 0.1.0"
+      validations:
+          required: true
+    - type: dropdown
+      id: theme
+      attributes:
+          label: Theme
+          options:
+              - Light
+              - Dark
+              - Both / switches at runtime
+      validations:
+          required: true
+    - type: dropdown
+      id: display
+      attributes:
+          label: Display setup
+          options:
+              - Single display, 100% scale
+              - Single display, >100% scale (HiDPI)
+              - Multiple displays / mixed DPI
+      validations:
+          required: true
+    - type: textarea
+      id: screenshots
+      attributes:
+          label: Screenshots
+          description: >
+              For visual issues, screenshots of wrong vs. expected rendering
+              help a lot. Pixel-level details are welcome.

@@ -32,6 +32,13 @@ def scan_project(paths: str | Path | Iterable[str | Path]) -> list[str]:
 
     递归找 .py 文件，收集形如 'prefix:name' 的字符串；
     每一侧都必须含至少一个字母（排除 '10:30' 这类误报）。
+    会跳过 .git、.venv、node_modules 等常见无关目录，读不了的文件直接忽略。
+
+    Args:
+        paths: 要扫描的目录或 .py 文件；可传单个路径或路径可迭代对象
+
+    Returns:
+        排序后的去重图标名列表。
     """
     roots = [paths] if isinstance(paths, (str, Path)) else list(paths)
     found: set[str] = set()
@@ -61,9 +68,18 @@ def pack_project(
     *,
     api_root: str = DEFAULT_API_ROOT,
 ) -> tuple[Path, list[str]]:
-    """自动扫描 + 打包一步完成，返回 (bundle 路径, 实际打包的图标名)。
+    """自动扫描 + 打包一步完成。
 
-    扫描到的名字不存在的自动跳过（源码里 'a:b' 形状的普通字符串很常见）。
+    扫描到的名字不存在的自动跳过（源码里 'a:b' 形状的普通字符串很常见），
+    跳过的名字会输出到 stderr。
+
+    Args:
+        paths: 要扫描的目录或 .py 文件；可传单个路径或路径可迭代对象
+        out_path: 输出 bundle 文件路径
+        api_root: Iconify API 根地址；默认 DEFAULT_API_ROOT
+
+    Returns:
+        (bundle 路径, 实际打包的图标名列表)。
     """
     icons = scan_project(paths)
     packed = _pack(icons, out_path, api_root, skip_missing=True)
@@ -76,10 +92,17 @@ def pack_icons(
     *,
     api_root: str = DEFAULT_API_ROOT,
 ) -> Path:
-    """按显式清单联网收集图标，写成一个 bundle 文件，返回文件路径。
+    """按显式清单联网收集图标，写成一个 bundle 文件。
 
     bundle 可在运行时用 load_bundle() 加载，断网也能显示。
-    清单里存在下载不到的图标时报 IconNotFoundError。
+
+    Args:
+        icons: 图标名清单；每项形如 "prefix:name"
+        out_path: 输出 bundle 文件路径
+        api_root: Iconify API 根地址；默认 DEFAULT_API_ROOT
+
+    Returns:
+        bundle 文件路径。
     """
     _pack(icons, out_path, api_root, skip_missing=False)
     return out_path if isinstance(out_path, Path) else Path(out_path)
@@ -92,6 +115,21 @@ def _pack(
     *,
     skip_missing: bool,
 ) -> list[str]:
+    """按前缀分组联网获取图标并写出 bundle 文件。
+
+    Args:
+        icons: 图标名清单；每项形如 "prefix:name"
+        out_path: 输出 bundle 文件路径，父目录不存在时自动创建
+        api_root: Iconify API 根地址
+        skip_missing: 为 True 时跳过服务器上不存在的图标并输出到 stderr；为 False 时视为错误
+
+    Returns:
+        实际打包的图标名列表。
+
+    Raises:
+        InvalidResponseError: 清单中的图标名缺少前缀或名称。
+        IconNotFoundError: skip_missing 为 False 且有图标在服务器上不存在。
+    """
     grouped: dict[str, set[str]] = {}
     for icon in icons:
         prefix, _, name = icon.strip().partition(":")
@@ -143,6 +181,12 @@ def load_bundle(path: str | Path) -> None:
 
     相对路径找不到时自动查 PyInstaller 的解包目录（sys._MEIPASS），
     所以同一句 load_bundle("icons.json") 开发态和打包后都能用。
+
+    Args:
+        path: bundle 文件路径；可传绝对路径或相对路径
+
+    Raises:
+        InvalidResponseError: 文件内容不是 pyside-iconify bundle。
     """
     import json as _json
 
@@ -160,6 +204,16 @@ def load_bundle(path: str | Path) -> None:
 
 
 def _locate(path: str | Path) -> Path:
+    """定位 bundle 文件。
+
+    绝对路径或当前目录下存在的路径直接返回；否则尝试 PyInstaller 解包目录。
+
+    Args:
+        path: bundle 文件路径
+
+    Returns:
+        解包目录中存在时返回其下的路径，否则返回原路径。
+    """
     import sys
 
     file = Path(path)
@@ -176,6 +230,19 @@ def _locate(path: str | Path) -> Path:
 def _fetch_collection(
     prefix: str, names: set[str], api_root: str
 ) -> dict[str, object]:
+    """从 Iconify API 获取指定前缀下若干图标的集合数据。
+
+    Args:
+        prefix: 图标集合前缀
+        names: 要获取的图标名（不含前缀）
+        api_root: Iconify API 根地址
+
+    Returns:
+        集合数据字典；服务器返回 404 时为 icons 为空、not_found 含全部名称的字典。
+
+    Raises:
+        InvalidResponseError: 响应不是合法 JSON，或集合数据与前缀不符。
+    """
     joined = ",".join(sorted(names))
     url = f"{api_root.rstrip('/')}/{prefix}.json?icons={urllib.parse.quote(joined)}"
     request = urllib.request.Request(url, headers={"User-Agent": "pyside-iconify-pack"})
@@ -193,7 +260,17 @@ def _fetch_collection(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI 入口：python -m pyside_iconify.pack"""
+    """CLI 入口：python -m pyside_iconify.pack。
+
+    给了 --icons 或 --manifest 时按显式清单打包，缺失图标视为错误；
+    否则扫描 source 并跳过不存在的名字。
+
+    Args:
+        argv: 命令行参数列表；None 时读取 sys.argv
+
+    Returns:
+        进程退出码；0 表示成功，1 表示未扫描到图标或没有任何图标可打包。
+    """
     parser = argparse.ArgumentParser(
         prog="python -m pyside_iconify.pack",
         description="把用到的 Iconify 图标收集成一个离线 bundle 文件",
@@ -229,6 +306,17 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _collect_names(manifest: str | None, icons: str | None) -> list[str]:
+    """合并清单文件与逗号分隔字符串中的图标名。
+
+    清单文件每行可含逗号分隔的多个名字，"#" 之后为注释。
+
+    Args:
+        manifest: 清单文件路径；None 表示不读取
+        icons: 逗号分隔的图标名；None 表示不使用
+
+    Returns:
+        图标名列表，不去重。
+    """
     names: list[str] = []
     if manifest:
         for line in Path(manifest).read_text(encoding="utf-8").splitlines():

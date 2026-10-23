@@ -32,7 +32,30 @@ def render_pixmap(
     v_flip: bool = False,
     stable_scale: bool = False,
 ) -> QPixmap:
-    """渲染并缓存指定参数的 SVG 位图。"""
+    """渲染并缓存指定参数的 SVG 位图。
+
+    命中位图缓存时直接返回；否则生成 SVG、绘制后写入缓存。
+
+    Args:
+        cache_key: 位图缓存键
+        data: 图标数据
+        width: 逻辑宽度
+        height: 逻辑高度
+        device_pixel_ratio: 设备像素比；物理尺寸为逻辑尺寸乘以该值并取整，至少 1 像素
+        color: 单色；None 表示不替换颜色
+        colors: 颜色映射表；None 表示不使用
+        opacity: 不透明度；超出 0 到 1 时会被截断
+        rotate: 旋转角度，单位为度
+        h_flip: 是否在图标数据自带翻转基础上再水平翻转
+        v_flip: 是否在图标数据自带翻转基础上再垂直翻转
+        stable_scale: 为 True 时按 45 度旋转计算缩放，使旋转过程中大小不变
+
+    Returns:
+        设置了设备像素比的 QPixmap。
+
+    Raises:
+        UnsupportedSvgError: Qt 无法解析生成的 SVG。
+    """
     cached = pixmap_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -87,6 +110,18 @@ def _render_rotated(
     rotate: float,
     stable_scale: bool = False,
 ) -> None:
+    """绕画布中心旋转并等比缩放，使旋转后的图标完整落在画布内。
+
+    Args:
+        painter: 目标画笔
+        renderer: 已加载 SVG 的渲染器
+        canvas_width: 画布物理像素宽度
+        canvas_height: 画布物理像素高度
+        source_width: SVG 源宽度
+        source_height: SVG 源高度
+        rotate: 旋转角度，单位为度
+        stable_scale: 为 True 时按 45 度旋转计算缩放，使旋转过程中大小不变
+    """
     scale_angle = 45.0 if stable_scale else rotate
     radians = math.radians(scale_angle)
     cosine = abs(math.cos(radians))

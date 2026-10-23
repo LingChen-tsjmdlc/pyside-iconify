@@ -27,7 +27,14 @@ ColorValue: TypeAlias = ColorScalar | ColorMapping
 
 
 def require_application() -> QApplication:
-    """返回 QApplication，缺失时抛异常。"""
+    """返回当前 QApplication 实例。
+
+    Returns:
+        当前的 QApplication。
+
+    Raises:
+        NoApplicationError: 尚未创建 QApplication。
+    """
     application = QApplication.instance()
     if application is None:
         raise NoApplicationError("QApplication must exist before using Qt icons")
@@ -35,14 +42,32 @@ def require_application() -> QApplication:
 
 
 def require_main_thread() -> None:
-    """确保当前调用位于 Qt 主线程。"""
+    """确保当前调用位于 Qt 主线程。
+
+    没有应用实例时不做检查。
+
+    Raises:
+        WrongThreadError: 当前线程不是应用所在的主线程。
+    """
     application = QCoreApplication.instance()
     if application is not None and QThread.currentThread() != application.thread():
         raise WrongThreadError("Qt icon APIs must be called from the main thread")
 
 
 def normalize_color(value: ColorScalar) -> RGBA:
-    """把 Qt 或公开颜色写法转为 RGBA。"""
+    """把 Qt 或公开颜色写法转为 RGBA。
+
+    先按公开写法解析，字符串解析失败时再尝试 QColor 的命名颜色。
+
+    Args:
+        value: 颜色；可传 QColor、Qt.GlobalColor、RGBA、颜色字符串或数值序列
+
+    Returns:
+        对应的 RGBA。
+
+    Raises:
+        InvalidColorError: QColor 无效，或颜色写法无法解析。
+    """
     if isinstance(value, QColor):
         if not value.isValid():
             raise InvalidColorError("QColor is invalid")
@@ -61,7 +86,14 @@ def normalize_color(value: ColorScalar) -> RGBA:
 
 
 def normalize_mapping(value: ColorMapping) -> dict[RGBA | str, RGBA]:
-    """把公开颜色映射表规范化。"""
+    """把公开颜色映射表规范化。
+
+    Args:
+        value: 颜色映射表；键为被替换的颜色或 "currentColor"，值为目标颜色
+
+    Returns:
+        键为 RGBA 或 "currentColor"、值为 RGBA 的字典。
+    """
     result: dict[RGBA | str, RGBA] = {}
     for source, target in value.items():
         key: RGBA | str
@@ -74,7 +106,14 @@ def normalize_mapping(value: ColorMapping) -> dict[RGBA | str, RGBA]:
 
 
 def normalize_color_value(value: ColorValue | None) -> NormalizedColorValue | None:
-    """在公开接口边界立即验证颜色或映射表。"""
+    """在公开接口边界立即验证颜色或映射表。
+
+    Args:
+        value: 单个颜色、颜色映射表或 None
+
+    Returns:
+        RGBA、规范化后的映射表；传入 None 时返回 None。
+    """
     if value is None:
         return None
     if isinstance(value, Mapping):
@@ -83,7 +122,17 @@ def normalize_color_value(value: ColorValue | None) -> NormalizedColorValue | No
 
 
 def normalize_size(value: object) -> SizeSpec:
-    """把 QSize 或其它公开尺寸写法转为 SizeSpec。"""
+    """把 QSize 或其它公开尺寸写法转为 SizeSpec。
+
+    Args:
+        value: 尺寸；可传 SizeSpec、QSize（宽高须为正）、数字、字符串、元组或列表
+
+    Returns:
+        对应的 SizeSpec。
+
+    Raises:
+        InvalidSizeError: QSize 宽高不为正，或类型不受支持。
+    """
     if isinstance(value, SizeSpec):
         return value
     if isinstance(value, QSize):
@@ -96,5 +145,12 @@ def normalize_size(value: object) -> SizeSpec:
 
 
 def to_qcolor(color: RGBA) -> QColor:
-    """将内部 RGBA 转为 QColor。"""
+    """将内部 RGBA 转为 QColor。
+
+    Args:
+        color: 内部 RGBA 颜色
+
+    Returns:
+        对应的 QColor。
+    """
     return QColor(color.red, color.green, color.blue, color.alpha)

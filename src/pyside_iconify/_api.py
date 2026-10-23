@@ -25,12 +25,23 @@ from pyside_iconify.rendering.qt_adapter import require_application, require_mai
 
 
 def add_icon(name: str, data: IconData | str, *, replace: bool = False) -> None:
-    """注册一个本地图标。"""
+    """注册一个本地图标。
+
+    Args:
+        name: 图标名；格式为 ``prefix:name``。
+        data: 图标数据；可传 IconData 或 SVG body 字符串。
+        replace: 同名图标已存在时是否覆盖；False 时抛出重复注册异常。
+    """
     registry.add_icon(name, data, replace=replace)
 
 
 def add_collection(collection: Mapping[str, object], *, replace: bool = False) -> None:
-    """注册一份 Iconify JSON 图标集合。"""
+    """注册一份 Iconify JSON 图标集合。
+
+    Args:
+        collection: Iconify JSON 集合（已解析为映射）。
+        replace: 集合内存在已注册的同名图标时是否覆盖；False 时抛出重复注册异常。
+    """
     registry.add_collection(collection, replace=replace)
 
 
@@ -57,6 +68,26 @@ def get_icon(
     悬停变色不在这里：裸 QIcon 表达不了悬停（样式对图标
     的 mode 请求不可靠）。按钮悬停用 set_icon(hover_color=...)，
     控件悬停用 IconWidget(hover_color=...)。
+
+    Args:
+        icon: 图标名（``prefix:name``）或 IconData；IconData 会按内容注册为内联图标。
+        size: 图标尺寸；None 使用默认配置，可传数字、``"16px"``/``"1.5em"`` 字符串或 (宽, 高) 序列。
+        color: 通用颜色；None 使用默认配置。
+        color_light_theme: 浅色主题下的颜色；None 使用默认配置。
+        color_dark_theme: 深色主题下的颜色；None 使用默认配置。
+        selected_color: 选中状态的颜色；None 表示不单独指定。
+        selected_color_light_theme: 浅色主题下选中状态的颜色；None 表示不单独指定。
+        selected_color_dark_theme: 深色主题下选中状态的颜色；None 表示不单独指定。
+        opacity: 不透明度；0 到 1，None 使用默认配置。
+        width: 单独覆盖宽度；None 沿用 size 的宽度。
+        height: 单独覆盖高度；None 沿用 size 的高度。
+        rotate: 旋转角度；单位为度，会对 360 取模。
+        spin: 是否持续旋转。
+        h_flip: 是否水平翻转。
+        v_flip: 是否垂直翻转。
+
+    Returns:
+        可直接用于 Qt 控件的 QIcon。
     """
     require_application()
     require_main_thread()
@@ -87,7 +118,16 @@ def get_icon(
 def get_pixmap(
     icon: str | IconData, *, size: object | None = None, **options: object
 ) -> QPixmap:
-    """返回静态 QPixmap。"""
+    """返回静态 QPixmap。
+
+    Args:
+        icon: 图标名（``prefix:name``）或 IconData。
+        size: 图标尺寸；None 使用默认配置，em 单位按应用默认字体高度换算。
+        **options: 其余渲染选项；取值同 get_icon 的同名参数（如 color、opacity、rotate、h_flip）。
+
+    Returns:
+        按解析后的尺寸渲染出的 QPixmap。
+    """
     require_application()
     require_main_thread()
     render_options = make_options(size=size, **options)
@@ -103,17 +143,38 @@ def get_pixmap(
 
 
 def get_icon_data(icon: str) -> IconData:
-    """返回已注册的图标数据。"""
+    """返回已注册的图标数据。
+
+    Args:
+        icon: 图标名；格式为 ``prefix:name``。
+
+    Returns:
+        该图标对应的 IconData。
+    """
     return registry.get(icon)
 
 
 def is_monotone(icon: str) -> bool:
-    """判断图标是否只使用 currentColor。"""
+    """判断图标是否只使用 currentColor。
+
+    Args:
+        icon: 已注册的图标名。
+
+    Returns:
+        图标没有固定颜色时为 True。
+    """
     return not collect_paints(registry.get(icon).body)
 
 
 def get_icon_colors(icon: str) -> tuple[str, ...]:
-    """列出图标固定颜色。"""
+    """列出图标固定颜色。
+
+    Args:
+        icon: 已注册的图标名。
+
+    Returns:
+        ``#rrggbb`` 形式的颜色字符串元组；不含 alpha。
+    """
     return tuple(
         f"#{color.red:02x}{color.green:02x}{color.blue:02x}"
         for color in collect_paints(registry.get(icon).body)
@@ -123,7 +184,12 @@ def get_icon_colors(icon: str) -> tuple[str, ...]:
 def set_cache_limits(
     *, pixmap_mib: int | None = None, data_entries: int | None = None
 ) -> None:
-    """调整缓存上限。"""
+    """调整缓存上限。
+
+    Args:
+        pixmap_mib: 像素图缓存上限；单位 MiB，须大于 0，None 表示不修改。
+        data_entries: 图标数据缓存的最大条目数，须大于 0，None 表示不修改。
+    """
     if data_entries is not None:
         registry.set_limit(data_entries)
     if pixmap_mib is not None:

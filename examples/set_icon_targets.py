@@ -1,4 +1,10 @@
-"""Step 3 示例一：本地图标 + set_icon 各类目标。"""
+"""set_icon on different targets, using locally registered icons (no network).
+
+Covers push buttons, tab pages, list items and tree nodes. Anything else with a
+setIcon works through get_icon; see the README.
+
+Run: uv run examples/set_icon_targets.py
+"""
 
 from __future__ import annotations
 
@@ -17,8 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from _theme import is_dark, set_theme
-
+from _common import add_controls
+from _i18n import bind, on_change, t
 from pyside_iconify import add_collection, set_icon
 
 ICONS = {
@@ -39,20 +45,24 @@ def build_window() -> QWidget:
     add_collection(ICONS)
 
     window = QWidget()
-    window.setWindowTitle("Step 3 · 本地图标与 set_icon")
+    bind(window.setWindowTitle, "set_icon targets", "set_icon 的各类目标")
     layout = QVBoxLayout(window)
 
-    buttons = QGroupBox("按钮与 QAction（set_icon）")
+    buttons = QGroupBox()
+    bind(buttons.setTitle, "Push buttons", "按钮")
     buttons_layout = QVBoxLayout(buttons)
-    save = QPushButton("保存（未写 hover_color，悬停无效果）")
-    set_icon(save, "app:home", size=20)
-    star = QPushButton("显式 hover_color")
-    set_icon(star, "app:star", size=20, color="#57606a", hover_color="#d1242f")
-    buttons_layout.addWidget(save)
-    buttons_layout.addWidget(star)
+    plain = QPushButton()
+    bind(plain.setText, "Save (no hover_color: no hover effect)", "保存（未写 hover_color，悬停无效果）")
+    set_icon(plain, "app:home", size=20)
+    hover = QPushButton()
+    bind(hover.setText, "With hover_color", "显式 hover_color")
+    set_icon(hover, "app:star", size=20, color="#57606a", hover_color="#d1242f")
+    buttons_layout.addWidget(plain)
+    buttons_layout.addWidget(hover)
     layout.addWidget(buttons)
 
-    tabs = QGroupBox("标签页（set_icon(tabs, name, index)）")
+    tabs = QGroupBox()
+    bind(tabs.setTitle, "Tab pages: set_icon(tabs, name, index)", "标签页：set_icon(tabs, name, index)")
     tabs_layout = QVBoxLayout(tabs)
     tab_widget = QTabWidget()
     for index, name in enumerate(["app:home", "app:file", "app:gear"]):
@@ -61,26 +71,41 @@ def build_window() -> QWidget:
     tabs_layout.addWidget(tab_widget)
     layout.addWidget(tabs)
 
-    lists = QGroupBox("列表与树（下载/主题变化自动刷新）")
+    lists = QGroupBox()
+    bind(
+        lists.setTitle,
+        "Lists and trees (refresh on download and theme change)",
+        "列表与树（下载或主题变化时自动刷新）",
+    )
     lists_layout = QVBoxLayout(lists)
-    list_widget = QListWidget()
     icon_names = [f"app:{key}" for key in ICONS["icons"]]
+    list_widget = QListWidget()
+    items: list[tuple[QListWidgetItem, int]] = []
     for row in range(6):
-        item = QListWidgetItem(f"条目 {row}")
+        item = QListWidgetItem()
         set_icon(item, icon_names[row % len(icon_names)], size=16)
         list_widget.addItem(item)
+        items.append((item, row))
     tree = QTreeWidget()
+    nodes: list[tuple[QTreeWidgetItem, int]] = []
     for row in range(4):
-        node = QTreeWidgetItem(tree, [f"节点 {row}"])
+        node = QTreeWidgetItem(tree)
         set_icon(node, icon_names[row], size=16)
+        nodes.append((node, row))
+
+    def refresh_rows() -> None:
+        """按当前语言刷新列表项与树节点文字。"""
+        for item, row in items:
+            item.setText(t("Item {row}", "条目 {row}", row=row))
+        for node, row in nodes:
+            node.setText(0, t("Node {row}", "节点 {row}", row=row))
+
+    on_change(refresh_rows)
     lists_layout.addWidget(list_widget)
     lists_layout.addWidget(tree)
     layout.addWidget(lists)
 
-    theme_button = QPushButton("切换亮暗主题")
-    layout.addWidget(theme_button)
-    theme_button.clicked.connect(lambda: set_theme(window, not is_dark()))
-    set_theme(window, False)
+    add_controls(window, layout)
     return window
 
 

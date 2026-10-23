@@ -39,32 +39,68 @@ __version__ = "0.1.0.dev0"
 
 
 def add_icon(name: str, data: IconData | str, *, replace: bool = False) -> None:
-    """注册一个本地图标。"""
+    """注册一个本地图标。
+
+    Args:
+        name: 图标名；格式为 ``prefix:name``。
+        data: 图标数据；可传 IconData 或 SVG body 字符串。
+        replace: 同名图标已存在时是否覆盖；False 时抛出重复注册异常。
+    """
     registry.add_icon(name, data, replace=replace)
 
 
 def add_collection(collection: Mapping[str, object], *, replace: bool = False) -> None:
-    """注册一份 Iconify JSON 图标集合。"""
+    """注册一份 Iconify JSON 图标集合。
+
+    Args:
+        collection: Iconify JSON 集合（已解析为映射）。
+        replace: 集合内存在已注册的同名图标时是否覆盖；False 时抛出重复注册异常。
+    """
     registry.add_collection(collection, replace=replace)
 
 
 def get_icon_data(icon: str) -> IconData:
-    """返回已注册的图标数据。"""
+    """返回已注册的图标数据。
+
+    Args:
+        icon: 图标名；格式为 ``prefix:name``。
+
+    Returns:
+        该图标对应的 IconData。
+    """
     return registry.get(icon)
 
 
 def mark_pending(icon: str) -> None:
-    """标记图标数据正在加载。"""
+    """标记图标数据正在加载。
+
+    Args:
+        icon: 图标名；格式为 ``prefix:name``。
+    """
     registry.mark_pending(icon)
 
 
 def is_monotone(icon: str) -> bool:
-    """判断图标是否只使用 currentColor。"""
+    """判断图标是否只使用 currentColor。
+
+    Args:
+        icon: 已注册的图标名。
+
+    Returns:
+        图标没有固定颜色时为 True。
+    """
     return not collect_paints(registry.get(icon).body)
 
 
 def get_icon_colors(icon: str) -> tuple[str, ...]:
-    """列出图标固定颜色。"""
+    """列出图标固定颜色。
+
+    Args:
+        icon: 已注册的图标名。
+
+    Returns:
+        ``#rrggbb`` 形式的颜色字符串元组；不含 alpha。
+    """
     return tuple(
         f"#{color.red:02x}{color.green:02x}{color.blue:02x}"
         for color in collect_paints(registry.get(icon).body)
@@ -72,7 +108,14 @@ def get_icon_colors(icon: str) -> tuple[str, ...]:
 
 
 def __getattr__(name: str) -> object:
-    """延迟导入依赖 Qt 的公开接口。"""
+    """按需延迟导入依赖 Qt、网络、集成与打包的公开接口。
+
+    Args:
+        name: 公开属性名；未知名称会抛出 AttributeError。
+
+    Returns:
+        对应子模块中的同名对象。
+    """
     if name == "IconWidget":
         from pyside_iconify.widgets import IconWidget
 

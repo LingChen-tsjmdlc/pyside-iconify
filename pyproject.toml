@@ -10,9 +10,11 @@ readme = "README.md"
 requires-python = ">=3.10,<3.15"
 license = "MIT"
 license-files = ["LICENSE"]
-keywords = ["pyside", "pyside2", "pyside6", "qt", "iconify", "svg", "icons"]
+keywords = ["pyside", "pyside6", "qt", "iconify", "svg", "icons"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X",
     "Environment :: X11 Applications :: Qt",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -28,7 +30,13 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/LingChen-tsjmdlc/pyside-iconify"
+Source = "https://github.com/LingChen-tsjmdlc/pyside-iconify"
+Issues = "https://github.com/LingChen-tsjmdlc/pyside-iconify/issues"
+
 [project.optional-dependencies]
+# 仅作 1.0 之后的评估入口，当前版本不支持 PySide2。
 pyside2 = [
     "PySide2==5.15.2.1; python_version < '3.11'",
 ]
@@ -50,7 +58,9 @@ include = [
     "/docs",
     "/examples",
     "/tests",
+    "/benchmarks",
     "/README.md",
+    "/CONTRIBUTING.md",
     "/LICENSE",
     "/pyproject.toml",
 ]

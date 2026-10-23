@@ -23,22 +23,37 @@ from pyside_iconify.rendering.qt_adapter import require_main_thread
 
 
 class LoadRequest(QObject):
-    """一批预加载请求的完成通知句柄。"""
+    """一批预加载请求的完成通知句柄。
+
+    信号 finished(object)：整批图标都有结果时发射，参数为 ``{图标名: 异常或 None}`` 字典。
+    """
 
     finished = Signal(object)
 
     def __init__(self, parent: QObject | None = None) -> None:
+        """初始化空的请求句柄。
+
+        Args:
+            parent: 父 QObject；可传 None。
+        """
         super().__init__(parent)
         self._results: dict[str, Exception | None] = {}
         self._remaining: set[str] = set()
         self._loop: QEventLoop | None = None
 
     def names(self) -> tuple[str, ...]:
-        """返回本批图标名。"""
+        """返回已有结果的图标名。"""
         return tuple(self._results)
 
     def wait(self, timeout_ms: int | None = None) -> dict[str, Exception | None]:
-        """阻塞事件循环等待完成，返回每个图标的结果。"""
+        """阻塞事件循环等待本批完成，必须在主线程调用。
+
+        Args:
+            timeout_ms: 最长等待毫秒数；None 表示一直等到全部完成。
+
+        Returns:
+            图标名到结果的映射，成功为 None，失败为对应异常；超时时只含已完成的图标。
+        """
         require_main_thread()
         if self._remaining:
             self._loop = QEventLoop(self)
@@ -55,12 +70,23 @@ class LoadRequest(QObject):
         self._resolve(dict.fromkeys(self._remaining, RequestCancelledError("cancelled")))
 
     def _start(self, results: dict[str, Exception | None], remaining: Iterable[str]) -> None:
+        """写入初始结果与待完成集合；没有待完成项时立即发射 finished。
+
+        Args:
+            results: 已确定结果的图标名到异常（成功为 None）的映射。
+            remaining: 仍在等待加载的图标名。
+        """
         self._results = dict(results)
         self._remaining = set(remaining)
         if not self._remaining:
             self.finished.emit(dict(self._results))
 
     def _resolve(self, updates: dict[str, Exception | None]) -> None:
+        """记录一批图标的结果，全部完成后发射 finished。
+
+        Args:
+            updates: 图标名到异常（成功为 None）的映射。
+        """
         for name, error in updates.items():
             self._results[name] = error
             self._remaining.discard(name)
@@ -69,7 +95,13 @@ class LoadRequest(QObject):
 
 
 class IconifyClient(QObject):
-    """按需下载图标数据并注册进内存注册表。"""
+    """按需下载图标数据并注册进内存注册表。
+
+    加载顺序为：内存注册表、磁盘缓存、网络下载。
+
+    信号 loaded(str)：参数为图标名；本类当前不会发射该信号。
+    信号 failed(str, object)：某个图标加载失败时发射，参数为图标名和异常对象。
+    """
 
     loaded = Signal(str)
     failed = Signal(str, object)
@@ -83,6 +115,15 @@ class IconifyClient(QObject):
         cache: DiskCache | None = None,
         target_registry: IconRegistry | None = None,
     ) -> None:
+        """初始化客户端。
+
+        Args:
+            parent: 父 QObject；可传 None。
+            offline: 是否启动即处于严格离线模式；默认 False。
+            downloader: 下载器；None 时新建默认 IconDownloader。
+            cache: 磁盘缓存；None 时使用默认目录的 DiskCache。
+            target_registry: 接收图标数据的注册表；None 时使用共享注册表。
+        """
         super().__init__(parent)
         self._registry = target_registry if target_registry is not None else shared_registry
         self._downloader = downloader if downloader is not None else IconDownloader(self)
@@ -101,7 +142,13 @@ class IconifyClient(QObject):
         self._pending_names: set[IconName] = set()
 
     def set_offline(self, value: bool) -> None:
-        """切换严格离线模式。"""
+        """切换严格离线模式。
+
+        切到离线时，未完成的加载记为 OfflineError；切回在线时，清除此前由离线造成的失败记录。
+
+        Args:
+            value: True 进入离线模式，False 回到在线模式。
+        """
         self._offline = bool(value)
         if value:
             self._fail_pending_icons()
@@ -116,7 +163,7 @@ class IconifyClient(QObject):
                     del self._failures[name]
 
     def _fail_pending_icons(self) -> None:
-        """切离线时，未完成的加载一律记为 OfflineError，不让控件永远转圈。"""
+        """把未完成的加载一律记为 OfflineError，并通知相关请求。"""
         with self._lock:
             pending = [
                 name for name in self._pending_names
@@ -137,7 +184,14 @@ class IconifyClient(QObject):
         return self._offline
 
     def get_failure(self, name: str | IconName) -> Exception | None:
-        """返回已记录的加载失败原因。"""
+        """返回已记录的加载失败原因。
+
+        Args:
+            name: 图标名；可传 "prefix:name" 字符串或 IconName。
+
+        Returns:
+            失败异常；没有失败记录时为 None。
+        """
         icon_name = parse_icon_name(name)
         with self._lock:
             return self._failures.get(icon_name)
@@ -148,7 +202,13 @@ class IconifyClient(QObject):
             self._failures.clear()
 
     def ensure_loaded(self, name: str | IconName) -> None:
-        """数据缺失时轻量触发一次加载，可在绘制路径调用。"""
+        """数据缺失时轻量触发一次加载，可在绘制路径调用。
+
+        客户端已关闭、处于离线、已有失败记录、数据已在注册表或正在加载时直接返回。
+
+        Args:
+            name: 图标名；可传 "prefix:name" 字符串或 IconName。
+        """
         require_main_thread()
         icon_name = parse_icon_name(name)
         if self._closed or self._offline:
@@ -169,7 +229,20 @@ class IconifyClient(QObject):
     def load(
         self, icons: Iterable[str], *, on_finished: Callable[[dict[str, Exception | None]], None] | None = None
     ) -> LoadRequest:
-        """显式预加载一批图标，返回 LoadRequest。"""
+        """显式预加载一批图标。
+
+        已在注册表的图标直接记为成功；已有失败记录的沿用该失败；离线时记为 OfflineError。
+
+        Args:
+            icons: 图标名可迭代对象；每项为 "prefix:name" 字符串。
+            on_finished: 整批完成时的回调，参数为结果映射；None 表示不回调。
+
+        Returns:
+            本批请求的 LoadRequest 句柄。
+
+        Raises:
+            ClientClosedError: 客户端已关闭。
+        """
         require_main_thread()
         if self._closed:
             raise ClientClosedError("client is closed")
@@ -200,7 +273,7 @@ class IconifyClient(QObject):
         return request
 
     def close(self) -> None:
-        """取消所有请求并关闭客户端。"""
+        """关闭客户端并关闭下载器，未完成的图标记为 ClientClosedError。"""
         require_main_thread()
         self._closed = True
         self._timer.stop()
@@ -216,6 +289,7 @@ class IconifyClient(QObject):
     # -- 内部 --
 
     def _flush_scheduled(self) -> None:
+        """按前缀先查磁盘缓存并注册，缓存未覆盖的图标交给下载器。"""
         scheduled, self._scheduled = self._scheduled, {}
         if self._offline:
             return
@@ -231,6 +305,11 @@ class IconifyClient(QObject):
                 self._downloader.fetch(prefix, rest)
 
     def _on_result(self, result: object) -> None:
+        """处理下载结果：写磁盘缓存、注册图标、记录失败、通知请求并重绘。
+
+        Args:
+            result: 下载器发出的 DownloadResult。
+        """
         from pyside_iconify.network.downloader import DownloadResult
 
         assert isinstance(result, DownloadResult)
@@ -285,7 +364,20 @@ class IconifyClient(QObject):
         height: float | None = None,
         set_missing: bool = False,
     ) -> set[str]:
-        """把图标数据注册进注册表，返回成功处理的图标名。"""
+        """把图标数据注册进注册表，未找到的图标记为失败。
+
+        Args:
+            prefix: 图标集前缀。
+            icons: 图标名到图标数据的映射。
+            aliases: 别名到别名数据的映射；父图标不在 icons 中的别名会被忽略。
+            not_found: 确认不存在的图标名集合。
+            width: 图标集默认宽度；None 表示未提供。
+            height: 图标集默认高度；None 表示未提供。
+            set_missing: True 表示整个图标集不存在，失败信息改为图标集不存在。
+
+        Returns:
+            已处理的图标名集合，包含注册成功和已记为失败的。
+        """
         handled: set[str] = set()
         if icons or aliases:
             safe_aliases = {
@@ -324,6 +416,15 @@ class IconifyClient(QObject):
         return handled
 
     def _collect_updates(self, prefix: str, names: frozenset[str]) -> dict[str, Exception | None]:
+        """收集一批图标当前的结果。
+
+        Args:
+            prefix: 图标集前缀。
+            names: 图标名集合（不含前缀）。
+
+        Returns:
+            完整图标名到结果的映射，失败为异常、已注册为 None；两者都不是的图标不包含在内。
+        """
         updates: dict[str, Exception | None] = {}
         for name in names:
             icon_name = IconName(prefix, name)
@@ -335,6 +436,12 @@ class IconifyClient(QObject):
         return updates
 
     def _record_failure(self, icon_name: IconName, error: Exception) -> None:
+        """记录失败原因、清除待加载标记，并发射 failed 信号。
+
+        Args:
+            icon_name: 失败的图标名。
+            error: 失败原因。
+        """
         self._registry.clear_pending(icon_name)
         with self._lock:
             self._failures[icon_name] = error
@@ -343,6 +450,11 @@ class IconifyClient(QObject):
         self.failed.emit(str(icon_name), error)
 
     def _update_requests(self, updates: dict[str, Exception | None]) -> None:
+        """把结果分发给相关的 LoadRequest，已完成的请求从列表移除。
+
+        Args:
+            updates: 完整图标名到异常（成功为 None）的映射。
+        """
         if not self._requests:
             return
         for request in self._requests[:]:
@@ -353,6 +465,7 @@ class IconifyClient(QObject):
                 self._requests.remove(request)
 
     def _repaint_all(self) -> None:
+        """刷新所有控件，使新到达的图标得以绘制。"""
         application = QApplication.instance()
         if application is None:
             return
@@ -361,6 +474,15 @@ class IconifyClient(QObject):
 
 
 def _alias_resolvable(alias: dict[str, object], icons: dict[str, dict[str, object]]) -> bool:
+    """判断别名的父图标是否存在于给定图标中。
+
+    Args:
+        alias: 别名数据；其 "parent" 字段应为父图标名。
+        icons: 图标名到图标数据的映射。
+
+    Returns:
+        父图标名是字符串且在 icons 中时为 True。
+    """
     parent = alias.get("parent")
     return isinstance(parent, str) and parent in icons
 
@@ -369,7 +491,11 @@ _default_client: IconifyClient | None = None
 
 
 def default_client() -> IconifyClient:
-    """返回进程级共享客户端。"""
+    """返回进程级共享客户端，首次调用时创建。
+
+    Returns:
+        共享的 IconifyClient。
+    """
     global _default_client
     if _default_client is None:
         _default_client = IconifyClient()
@@ -377,7 +503,11 @@ def default_client() -> IconifyClient:
 
 
 def set_offline(value: bool) -> None:
-    """切换默认客户端的离线模式。"""
+    """切换默认客户端的离线模式。
+
+    Args:
+        value: True 进入离线模式，False 回到在线模式。
+    """
     default_client().set_offline(value)
 
 
@@ -391,5 +521,13 @@ def load_icons(
     *,
     on_finished: Callable[[dict[str, Exception | None]], None] | None = None,
 ) -> LoadRequest:
-    """用默认客户端预加载一批图标。"""
+    """用默认客户端预加载一批图标。
+
+    Args:
+        icons: 图标名可迭代对象；每项为 "prefix:name" 字符串。
+        on_finished: 整批完成时的回调，参数为结果映射；None 表示不回调。
+
+    Returns:
+        本批请求的 LoadRequest 句柄。
+    """
     return default_client().load(icons, on_finished=on_finished)

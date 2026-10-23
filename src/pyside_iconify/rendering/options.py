@@ -1,4 +1,4 @@
-"""渲染选项构造"""
+"""渲染选项构造。"""
 
 from __future__ import annotations
 
@@ -37,7 +37,34 @@ def make_options(
     h_flip: bool = False,
     v_flip: bool = False,
 ) -> IconOptions:
-    """把公开参数和默认配置转为渲染选项。"""
+    """把公开参数和默认配置转为渲染选项。
+
+    值为 None 的参数使用默认配置；颜色与尺寸在此处立即校验并规范化。
+
+    Args:
+        size: 图标尺寸；可传 SizeSpec、QSize、数字、字符串、元组或列表，None 用默认配置
+        color: 基础颜色；可传颜色值或颜色映射表，None 用默认配置
+        color_light_theme: 浅色主题基础颜色；None 用默认配置
+        color_dark_theme: 深色主题基础颜色；None 用默认配置
+        hover_color: 悬停颜色；None 表示不变色
+        hover_color_light_theme: 浅色主题悬停颜色；None 表示不指定
+        hover_color_dark_theme: 深色主题悬停颜色；None 表示不指定
+        selected_color: 选中颜色；None 表示不变色
+        selected_color_light_theme: 浅色主题选中颜色；None 表示不指定
+        selected_color_dark_theme: 深色主题选中颜色；None 表示不指定
+        opacity: 整体不透明度；0 到 1，None 用默认配置
+        disabled_opacity: 禁用时的不透明度；0 到 1，None 用默认配置
+        spin: 是否持续旋转
+        spin_period: 旋转一周的秒数；有限正数，None 用默认配置
+        width: 单独覆盖宽度；可传与 size 相同的写法，只取其宽度
+        height: 单独覆盖高度；可传与 size 相同的写法，只取其高度
+        rotate: 固定旋转角度；有限数字，单位为度，会对 360 取模
+        h_flip: 是否水平翻转
+        v_flip: 是否垂直翻转
+
+    Returns:
+        规范化后的 IconOptions。
+    """
     defaults = get_default_config()
     actual_size = defaults.size if size is None else size
     actual_color = defaults.color if color is None else color
@@ -81,6 +108,17 @@ def make_options(
 
 
 def _opacity(value: float) -> float:
+    """校验不透明度。
+
+    Args:
+        value: 不透明度；0 到 1 的数字，不接受 bool
+
+    Returns:
+        转为 float 的不透明度。
+
+    Raises:
+        InvalidOpacityError: 值不是数字、是 bool 或不在 0 到 1 之间。
+    """
     if (
         isinstance(value, bool)
         or not isinstance(value, (int, float))
@@ -91,6 +129,17 @@ def _opacity(value: float) -> float:
 
 
 def _spin_period(value: float) -> float:
+    """校验旋转周期。
+
+    Args:
+        value: 旋转一周的秒数；有限正数，不接受 bool
+
+    Returns:
+        转为 float 的旋转周期。
+
+    Raises:
+        InvalidRotationError: 值不是数字、是 bool、非有限数或不大于 0。
+    """
     if (
         isinstance(value, bool)
         or not isinstance(value, (int, float))
@@ -102,6 +151,17 @@ def _spin_period(value: float) -> float:
 
 
 def _rotation(value: float) -> float:
+    """校验旋转角度并归一化到 [0, 360)。
+
+    Args:
+        value: 旋转角度，单位为度；有限数字，不接受 bool
+
+    Returns:
+        对 360 取模后的角度。
+
+    Raises:
+        InvalidRotationError: 值不是数字、是 bool 或非有限数。
+    """
     if (
         isinstance(value, bool)
         or not isinstance(value, (int, float))

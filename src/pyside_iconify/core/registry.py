@@ -21,6 +21,7 @@ class IconRegistry:
     """保存已注册 Iconify 数据的线程安全注册表。"""
 
     def __init__(self) -> None:
+        """创建空的注册表。"""
         self._items: OrderedDict[IconName, IconData] = OrderedDict()
         self._versions: dict[IconName, int] = {}
         self._pending: set[IconName] = set()
@@ -30,7 +31,19 @@ class IconRegistry:
     def add_icon(
         self, name: str | IconName, data: IconData | str, *, replace: bool = False
     ) -> None:
-        """注册一个图标。"""
+        """注册一个图标。
+
+        data 为字符串且 replace 为 True、同名图标已存在时，沿用旧图标的尺寸与翻转等元数据，只替换 body。
+
+        Args:
+            name: 图标名；可传 ``prefix:name`` 字符串或 IconName。
+            data: 图标数据；可传 IconData 或 SVG body 字符串。
+            replace: 同名图标已存在时是否覆盖。
+
+        Raises:
+            InvalidIconDataError: data 既不是 IconData 也不是字符串。
+            DuplicateIconError: 同名图标已存在且 replace 为 False。
+        """
         icon_name = parse_icon_name(name)
         if isinstance(data, str):
             with self._lock:
@@ -73,7 +86,15 @@ class IconRegistry:
     def add_collection(
         self, collection: Mapping[str, object], *, replace: bool = False
     ) -> None:
-        """注册一份 Iconify JSON 集合。"""
+        """注册一份 Iconify JSON 集合。
+
+        Args:
+            collection: Iconify JSON 集合（已解析为映射）。
+            replace: 集合内存在已注册的同名图标时是否覆盖。
+
+        Raises:
+            DuplicateIconError: 存在已注册的同名图标且 replace 为 False。
+        """
         parsed = parse_collection(collection)
         with self._lock:
             duplicates = [name for name in parsed if name in self._items]
@@ -88,7 +109,16 @@ class IconRegistry:
             self._trim()
 
     def register_inline(self, data: IconData) -> IconName:
-        """注册可复用的内联图标并返回内部名称。"""
+        """注册可复用的内联图标并返回内部名称。
+
+        相同内容的 IconData 会得到同一个名称，不会重复注册。
+
+        Args:
+            data: 内联图标数据。
+
+        Returns:
+            ``inline:<内容摘要>`` 形式的 IconName。
+        """
         digest = sha256(repr(data).encode("utf-8")).hexdigest()[:16]
         name = IconName("inline", digest)
         with self._lock:
@@ -100,7 +130,17 @@ class IconRegistry:
             return name
 
     def get(self, name: str | IconName) -> IconData:
-        """返回已注册图标。"""
+        """返回已注册图标，并将其标记为最近使用。
+
+        Args:
+            name: 图标名；可传 ``prefix:name`` 字符串或 IconName。
+
+        Returns:
+            该图标的 IconData。
+
+        Raises:
+            IconNotFoundError: 图标未注册。
+        """
         icon_name = parse_icon_name(name)
         with self._lock:
             try:
@@ -110,7 +150,17 @@ class IconRegistry:
                 raise IconNotFoundError(f"icon not found: {icon_name}") from error
 
     def version(self, name: str | IconName) -> int:
-        """返回图标数据版本。"""
+        """返回图标数据版本。
+
+        Args:
+            name: 图标名；可传 ``prefix:name`` 字符串或 IconName。
+
+        Returns:
+            版本号；每次重新注册会递增。
+
+        Raises:
+            IconNotFoundError: 图标未注册。
+        """
         icon_name = parse_icon_name(name)
         with self._lock:
             if icon_name not in self._items:
@@ -118,31 +168,57 @@ class IconRegistry:
             return self._versions[icon_name]
 
     def contains(self, name: str | IconName) -> bool:
-        """判断图标是否已注册。"""
+        """判断图标是否已注册。
+
+        Args:
+            name: 图标名；可传 ``prefix:name`` 字符串或 IconName。
+
+        Returns:
+            已注册为 True。
+        """
         icon_name = parse_icon_name(name)
         with self._lock:
             return icon_name in self._items
 
     def mark_pending(self, name: str | IconName) -> None:
-        """标记图标数据正在加载。"""
+        """标记图标数据正在加载。
+
+        Args:
+            name: 图标名；可传 ``prefix:name`` 字符串或 IconName。
+        """
         icon_name = parse_icon_name(name)
         with self._lock:
             self._pending.add(icon_name)
 
     def is_pending(self, name: str | IconName) -> bool:
-        """判断图标数据是否正在加载。"""
+        """判断图标数据是否正在加载。
+
+        Args:
+            name: 图标名；可传 ``prefix:name`` 字符串或 IconName。
+
+        Returns:
+            已被标记为加载中为 True。
+        """
         icon_name = parse_icon_name(name)
         with self._lock:
             return icon_name in self._pending
 
     def clear_pending(self, name: str | IconName) -> None:
-        """解除图标的加载中标记。"""
+        """解除图标的加载中标记。
+
+        Args:
+            name: 图标名；可传 ``prefix:name`` 字符串或 IconName。
+        """
         icon_name = parse_icon_name(name)
         with self._lock:
             self._pending.discard(icon_name)
 
     def set_limit(self, entries: int | None) -> None:
-        """设置数据缓存上限。"""
+        """设置数据缓存上限，超出时按最近最少使用淘汰。
+
+        Args:
+            entries: 最大条目数，须大于 0；None 表示不限制。
+        """
         if entries is not None and entries <= 0:
             raise ValueError("data_entries must be greater than 0")
         with self._lock:
@@ -150,6 +226,7 @@ class IconRegistry:
             self._trim()
 
     def _trim(self) -> None:
+        """淘汰最久未使用的图标，直到条目数不超过上限。"""
         while self._limit is not None and len(self._items) > self._limit:
             name, _ = self._items.popitem(last=False)
             self._versions.pop(name, None)

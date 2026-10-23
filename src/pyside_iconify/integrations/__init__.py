@@ -1,4 +1,4 @@
-"""与其他 Qt 对象的集成（Step 3）。"""
+"""与其他 Qt 对象的集成。"""
 
 from __future__ import annotations
 

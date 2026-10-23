@@ -29,7 +29,19 @@ DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 
 @dataclass(frozen=True, slots=True)
 class DownloadResult:
-    """一次批量下载的结果。"""
+    """一次批量下载的结果。
+
+    Attributes:
+        prefix: 图标集前缀。
+        names: 本次请求的图标名集合（不含前缀）。
+        icons: 下载到的图标名到图标数据的映射。
+        aliases: 下载到的别名到别名数据的映射。
+        not_found: 确认不存在的图标名集合。
+        error: 下载失败的原因；成功时为 None。
+        width: 图标集默认宽度；响应未提供时为 None。
+        height: 图标集默认高度；响应未提供时为 None。
+        set_missing: True 表示整个图标集不存在。
+    """
 
     prefix: str
     names: frozenset[str]
@@ -43,7 +55,17 @@ class DownloadResult:
 
 
 def _error_from_reply(reply: QNetworkReply) -> Exception:
-    """把 Qt 网络错误映射为库错误。"""
+    """把 Qt 网络错误映射为库错误。
+
+    HTTP 404 映射为 InvalidResponseError，429 映射为 RateLimitError，5xx 映射为 ServerError，
+    操作被取消映射为 RequestCancelledError，其余映射为 NetworkError。
+
+    Args:
+        reply: 已完成的网络应答。
+
+    Returns:
+        对应的库异常实例。
+    """
     status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
     if status is not None:
         code = int(status)
@@ -60,7 +82,10 @@ def _error_from_reply(reply: QNetworkReply) -> Exception:
 
 
 class IconDownloader(QObject):
-    """按前缀凑批下载图标 JSON，同一时刻每个图标只请求一次。"""
+    """按前缀凑批下载图标 JSON，同一时刻每个图标只请求一次。
+
+    信号 resultReady(object)：一批下载结束（成功、失败或被取消）时发射，参数为 DownloadResult。
+    """
 
     resultReady = Signal(object)
 
@@ -72,6 +97,14 @@ class IconDownloader(QObject):
         batch_delay_ms: int = DEFAULT_BATCH_DELAY_MS,
         max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
     ) -> None:
+        """初始化下载器。
+
+        Args:
+            parent: 父 QObject；可传 None。
+            api_root: Iconify API 根地址；末尾的斜杠会被去掉。
+            batch_delay_ms: 凑批等待毫秒数；负数按 0 处理。
+            max_response_bytes: 单次响应正文的最大字节数；超出视为 ResponseTooLargeError。
+        """
         super().__init__(parent)
         self._manager = QNetworkAccessManager(self)
         self._api_root = api_root.rstrip("/")
@@ -88,7 +121,17 @@ class IconDownloader(QObject):
         self._closed = False
 
     def fetch(self, prefix: str, names: Iterable[str]) -> None:
-        """请求一批图标，进入凑批队列。"""
+        """请求一批图标，进入凑批队列，等待定时器到期后统一发起请求。
+
+        已在请求中或已在队列里的图标会被忽略，空名称会被过滤。必须在主线程调用。
+
+        Args:
+            prefix: 图标集前缀。
+            names: 图标名可迭代对象（不含前缀）。
+
+        Raises:
+            ClientClosedError: 下载器已关闭。
+        """
         require_main_thread()
         if self._closed:
             raise ClientClosedError("downloader is closed")
@@ -107,7 +150,10 @@ class IconDownloader(QObject):
             self._timer.start()
 
     def close(self) -> None:
-        """取消所有进行中的请求并停止接收新请求。"""
+        """取消所有进行中的请求并停止接收新请求。
+
+        每个被取消的请求都会发射带 RequestCancelledError 的 resultReady；重复调用无效果。
+        """
         require_main_thread()
         if self._closed:
             return
@@ -130,10 +176,12 @@ class IconDownloader(QObject):
         self._queued.clear()
 
     def _retire(self, reply: QNetworkReply) -> None:
-        """回收已完成的 reply，销毁动作同步完成，不留悬空的 DeferredDelete。
+        """回收已完成的 reply。
 
-        若只 deleteLater，事件未被处理时本对象可能连带销毁 reply 的 C++
-        对象，之后事件循环处理这条失效事件会直接崩溃。
+        断开信号并关闭 reply 后放入回收队列；队列满时同步销毁最旧的一个，不留待处理的 DeferredDelete 事件。
+
+        Args:
+            reply: 已完成或已取消的网络应答。
         """
         try:
             reply.finished.disconnect()
@@ -146,10 +194,16 @@ class IconDownloader(QObject):
 
     @staticmethod
     def _destroy(reply: QNetworkReply) -> None:
+        """同步销毁 reply。
+
+        Args:
+            reply: 要销毁的网络应答。
+        """
         reply.deleteLater()
         QCoreApplication.sendPostedEvents(reply, QEvent.Type.DeferredDelete)
 
     def _flush(self) -> None:
+        """为队列中的每个前缀发起一次 GET 请求，并清空队列。"""
         for prefix, names in self._queued.items():
             frozen = frozenset(names)
             self._inflight.setdefault(prefix, set()).update(frozen)
@@ -168,6 +222,11 @@ class IconDownloader(QObject):
         self._queued.clear()
 
     def _on_finished(self, reply: QNetworkReply) -> None:
+        """处理应答完成：更新在途记录、解析应答、回收 reply 并发射 resultReady。
+
+        Args:
+            reply: 已完成的网络应答。
+        """
         entry = self._replies.pop(reply, None)
         if entry is None:
             self._retire(reply)
@@ -187,6 +246,16 @@ class IconDownloader(QObject):
     def _parse_reply(
         self, reply: QNetworkReply, prefix: str, names: frozenset[str]
     ) -> DownloadResult:
+        """把应答解析为 DownloadResult，解析失败时结果的 error 字段携带原因。
+
+        Args:
+            reply: 已完成的网络应答。
+            prefix: 请求的图标集前缀。
+            names: 本次请求的图标名集合（不含前缀）。
+
+        Returns:
+            解析后的下载结果；集合不存在（HTTP 404 或正文为 404）时 not_found 为全部请求名且 set_missing 为 True。
+        """
         if reply.error() != QNetworkReply.NetworkError.NoError:
             status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
             if status is not None and int(status) == 404:
@@ -277,6 +346,14 @@ class IconDownloader(QObject):
 
 
 def _optional_number(value: object) -> float | None:
+    """把 JSON 数值转为 float。
+
+    Args:
+        value: 待转换的值。
+
+    Returns:
+        int 或 float（不含 bool）转成的 float；其他类型为 None。
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value)
