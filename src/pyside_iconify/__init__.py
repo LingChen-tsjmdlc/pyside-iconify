@@ -35,7 +35,7 @@ from pyside_iconify.core.registry import registry
 from pyside_iconify.core.svg import collect_paints
 from pyside_iconify.core.types import IconData
 
-__version__ = "0.1.0.dev0"
+__version__ = "1.0.0"
 
 
 def add_icon(name: str, data: IconData | str, *, replace: bool = False) -> None:
