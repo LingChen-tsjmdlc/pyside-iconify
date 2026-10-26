@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from hashlib import sha256
 
@@ -12,14 +13,18 @@ from PySide6.QtWidgets import QSizePolicy, QStyle, QStyleOption, QWidget
 from pyside_iconify._config import get_default_config
 from pyside_iconify._errors import (
     IconNotFoundError,
+    InvalidAnimationError,
     InvalidIconNameError,
     UnsupportedSvgError,
 )
+from pyside_iconify._logging import logger
 from pyside_iconify.core.names import parse_icon_name
+from pyside_iconify.core.smil import UnsupportedSmilError
 from pyside_iconify.core.registry import registry
 from pyside_iconify.core.types import IconData, RGBA
 from pyside_iconify.network import client as _network
 from pyside_iconify.rendering.engine import IconOptions
+from pyside_iconify.rendering.motion import frame_at
 from pyside_iconify.rendering.options import make_options
 from pyside_iconify.rendering.placeholder import create_blank, create_placeholder
 from pyside_iconify.rendering.qt_adapter import (
@@ -29,9 +34,32 @@ from pyside_iconify.rendering.qt_adapter import (
     require_main_thread,
 )
 from pyside_iconify.rendering.renderer import render_pixmap
-from pyside_iconify.widgets.animation import get_spin_clock
+from pyside_iconify.rendering import smil_player
+from pyside_iconify.widgets.animation import Playhead, get_spin_clock
 
 _UNSET = object()
+
+
+def _valid_speed(value: float) -> float:
+    """校验播放速度倍率。
+
+    Args:
+        value: 倍率；须为大于 0 的有限数字，不接受 bool
+
+    Returns:
+        转为 float 的倍率。
+
+    Raises:
+        InvalidAnimationError: 值不是数字、是 bool、非有限数或不大于 0。
+    """
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+        raise InvalidAnimationError("speed must be a finite number greater than 0")
+    return float(value)
 
 
 class IconWidget(QWidget):
@@ -67,8 +95,14 @@ class IconWidget(QWidget):
         width: object | None = None,
         height: object | None = None,
         rotate: float = 0,
+        rotate_overflow: bool = False,
         spin: bool = False,
         spin_period: float | None = None,
+        animation: str | None = None,
+        animation_period: float | None = None,
+        animation_depth: float | None = None,
+        autoplay: bool = True,
+        speed: float = 1.0,
         h_flip: bool = False,
         v_flip: bool = False,
         qss: str | None = None,
@@ -99,8 +133,23 @@ class IconWidget(QWidget):
             width: 单独覆盖宽度；写法同 size（取其宽度），None 表示沿用 size。
             height: 单独覆盖高度；写法同 size（取其高度），None 表示沿用 size。
             rotate: 静态旋转角度（度）；有限数字，会对 360 取模。
-            spin: 是否持续旋转；True 由共享时钟驱动，False 不旋转。
+            rotate_overflow: 旋转时是否保持原大小；False 按角度自动缩小以免被裁切，
+                True 不缩小，铺满控件的图标旋转时四角可能被裁掉。
+            spin: 是否持续旋转；等价于 animation="spin"，不能与其他动画同时给出。
             spin_period: 旋转一圈的秒数；有限正数，None 用默认配置。
+            animation: 内置动画；"spin"、"pulse"、"breathe"、"ping"、"bounce" 之一，
+                None 表示不动画。
+                动画由共享时钟驱动。
+            animation_period: 动画一个周期的秒数；有限正数，None 时 spin 用
+                spin_period，pulse、ping、bounce 为 1 秒，breathe 为 2 秒。
+            animation_depth: 动画变化幅度；0 到 1，None 用默认值。pulse 默认 0.25（缩到 75%），
+                breathe 默认 0.7（淡到 30%），ping 默认 1（水波扩散到 2 倍），
+                bounce 默认 0.25（跳起图标高度的 25%）。ping、bounce 会把图标缩小到
+                1 / (1 + 幅度)，给水波和弹跳留出空间。spin 不能给出。
+            autoplay: 图标自带 SMIL 动画（如 line-md、meteocons、svg-spinners 的动画图标）
+                是否自动播放；False 时停在播完后的完成态，调用 play() 才开始。
+                对没有自带动画的图标无影响。
+            speed: 图标自带动画的播放速度倍率；须大于 0，不影响 animation= 内置效果。
             h_flip: 是否水平翻转；True 或 False。
             v_flip: 是否垂直翻转；True 或 False。
             qss: 样式表属性；传入非空字符串时写入控件的 "qss" 动态属性，
@@ -131,15 +180,17 @@ class IconWidget(QWidget):
             height=height,
             spin=spin,
             spin_period=spin_period,
+            animation=animation,
+            animation_period=animation_period,
+            animation_depth=animation_depth,
             rotate=rotate,
+            rotate_overflow=rotate_overflow,
             h_flip=h_flip,
             v_flip=v_flip,
         )
         self.setMouseTracking(True)
         self._width_override = width
         self._height_override = height
-        self._spin = spin
-        self._spin_period = self._options.spin_period
         self._fallback = (
             get_default_config().fallback if fallback is _UNSET else fallback
         )
@@ -153,11 +204,14 @@ class IconWidget(QWidget):
         self._reported_failure = False
         self._repolishing = False
         self._loading_timer: QTimer | None = None
+        self._playhead = Playhead(_valid_speed(speed))
+        self._autoplay = bool(autoplay)
+        self._smil_shown: float | None = None
         if qss:
             self.setProperty("qss", qss)
             # QSS 背景需要控件自己参与样式绘制
             self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        if spin:
+        if self._options.animation is not None:
             get_spin_clock().add(self)
         # 构造即预触发加载，不等首次绘制。
         if not registry.contains(self._name) and not registry.is_pending(self._name):
@@ -177,6 +231,13 @@ class IconWidget(QWidget):
         require_main_thread()
         self._name = parse_icon_name(icon)
         self._reported_failure = False
+        # 新图标有自己的动画，要从头开始：autoplay 时立刻计时，否则回到"未开始"（显示完成态）
+        self._smil_shown = None
+        if self._autoplay:
+            self._playhead.restart(get_spin_clock().elapsed())
+            get_spin_clock().add(self)
+        else:
+            self._playhead = Playhead(self._playhead.speed)
         self._update_status()
         self.update()
 
@@ -186,28 +247,7 @@ class IconWidget(QWidget):
         Args:
             value: 新尺寸；可传数字、(宽, 高) 元组/列表、QSize、"24px"、"1.5em" 等字符串。
         """
-        require_main_thread()
-        self._options = make_options(
-            size=value,
-            color=self._options.color,
-            color_light_theme=self._options.color_light_theme,
-            color_dark_theme=self._options.color_dark_theme,
-            hover_color=self._options.hover_color,
-            hover_color_light_theme=self._options.hover_color_light_theme,
-            hover_color_dark_theme=self._options.hover_color_dark_theme,
-            selected_color=self._options.selected_color,
-            selected_color_light_theme=self._options.selected_color_light_theme,
-            selected_color_dark_theme=self._options.selected_color_dark_theme,
-            opacity=self._options.opacity,
-            disabled_opacity=self._options.disabled_opacity,
-            spin=self._options.spin,
-            spin_period=self._options.spin_period,
-            rotate=self._options.rotate,
-            h_flip=self._options.h_flip,
-            v_flip=self._options.v_flip,
-        )
-        self.updateGeometry()
-        self.update()
+        self._replace_options(size=value)
 
     def setColor(self, value: ColorValue | None) -> None:
         """设置默认颜色。
@@ -249,19 +289,107 @@ class IconWidget(QWidget):
         """
         self._replace_options(rotate=value)
 
-    def setSpin(self, enabled: bool) -> None:
-        """启用或停止旋转动画。
+    def setRotateOverflow(self, enabled: bool) -> None:
+        """设置旋转时是否保持原大小。
 
         Args:
-            enabled: 是否旋转；True 注册到共享时钟，False 移除。
+            enabled: True 不随角度缩小，四角旋转时可能被裁掉；False 自动缩小以免被裁切。
         """
-        require_main_thread()
-        self._spin = enabled
+        self._replace_options(rotate_overflow=enabled)
+
+    def setAnimation(
+        self,
+        animation: str | None,
+        period: float | None = None,
+        depth: float | None = None,
+    ) -> None:
+        """设置或停止内置动画。
+
+        Args:
+            animation: "spin"、"pulse"、"breathe"、"ping"、"bounce" 之一；None 停止动画。
+            period: 一个周期的秒数；有限正数，None 用该动画的默认周期。
+            depth: 变化幅度；0 到 1，None 用默认值，不能用于 spin。
+        """
+        self._replace_options(
+            animation=animation, animation_period=period, animation_depth=depth
+        )
         clock = get_spin_clock()
-        if enabled:
+        if self._options.animation is not None:
             clock.add(self)
         else:
             clock.remove(self)
+        self.update()
+
+    def setSpin(self, enabled: bool) -> None:
+        """启用或停止旋转动画；其他动画运行时 enabled=False 不会打断它。
+
+        Args:
+            enabled: 是否旋转；True 等价于 setAnimation("spin")。
+        """
+        if enabled:
+            self.setAnimation("spin")
+        elif self._options.animation == "spin":
+            self.setAnimation(None)
+
+    def isAnimated(self) -> bool:
+        """当前图标是否带有可播放的 SMIL 动画。
+
+        Returns:
+            图标数据已加载且含受支持的 SMIL 动画时为 True。
+        """
+        plan = self._current_plan()
+        return plan is not None
+
+    def isPlaying(self) -> bool:
+        """图标自带的动画是否正在播放。
+
+        Returns:
+            动画已开始、没有暂停、且还没有播到完成态时为 True；循环图标只要没暂停就一直为 True。
+        """
+        plan = self._current_plan()
+        if plan is None or not self._playhead.started or self._playhead.paused:
+            return False
+        if plan.loops:
+            return True
+        return self._playhead.elapsed(get_spin_clock().elapsed()) < plan.duration
+
+    def play(self) -> None:
+        """开始或继续播放图标自带的 SMIL 动画；已暂停则从暂停处继续。"""
+        require_main_thread()
+        clock = get_spin_clock()
+        now = clock.elapsed()
+        if self._playhead.paused:
+            self._playhead.resume(now)
+        elif not self._playhead.started:
+            self._playhead.start(now)
+        clock.add(self)
+        self.update()
+
+    def pause(self) -> None:
+        """暂停图标自带的动画，画面停在当前帧。"""
+        require_main_thread()
+        self._playhead.pause(get_spin_clock().elapsed())
+        self.update()
+
+    def replay(self) -> None:
+        """从头重新播放图标自带的动画。"""
+        require_main_thread()
+        clock = get_spin_clock()
+        self._playhead.restart(clock.elapsed())
+        clock.add(self)
+        self.update()
+
+    def setSpeed(self, speed: float) -> None:
+        """设置图标自带动画的播放速度倍率，已播放的部分保持不变。
+
+        Args:
+            speed: 倍率；须大于 0，如 0.5 为半速、2 为两倍速。
+
+        Raises:
+            InvalidAnimationError: 倍率不是大于 0 的有限数字。
+        """
+        require_main_thread()
+        self._playhead.set_speed(_valid_speed(speed), get_spin_clock().elapsed())
         self.update()
 
     def setFlips(self, horizontal: bool, vertical: bool) -> None:
@@ -289,7 +417,7 @@ class IconWidget(QWidget):
             event: Qt 显示事件。
         """
         super().showEvent(event)
-        if self._spin:
+        if self._options.animation is not None:
             get_spin_clock().sync()
 
     def hideEvent(self, event: QEvent) -> None:
@@ -299,7 +427,7 @@ class IconWidget(QWidget):
             event: Qt 隐藏事件。
         """
         super().hideEvent(event)
-        if self._spin:
+        if self._options.animation is not None:
             get_spin_clock().sync()
 
     def changeEvent(self, event: QEvent) -> None:
@@ -402,7 +530,9 @@ class IconWidget(QWidget):
             fast_state = None
         if (
             fast_state is not None
-            and not self._spin
+            and self._options.animation is None
+            and not self._smil_running()
+            and not self._smil_stale()
             and fast_state == self._fast_state
             and self._fast_pixmap is not None
             and not registry.is_pending(self._name)
@@ -442,12 +572,17 @@ class IconWidget(QWidget):
                 return create_placeholder(width, height, dpr)
         if render_name == self._name:
             self._set_status("ready")
+        data, smil_moment = self._smil_frame(data, str(render_name))
         color, colors = self._resolve_colors()
         disabled = self._options.disabled_opacity if not self.isEnabled() else 1.0
-        rotate = self._options.rotate
-        if self._spin:
-            rotate = (rotate + get_spin_clock().angle(self._spin_period)) % 360.0
-        opacity = self._options.opacity * disabled
+        frame = frame_at(
+            self._options.animation,
+            get_spin_clock().elapsed(),
+            self._options.animation_period,
+            self._options.animation_depth,
+        )
+        rotate = (self._options.rotate + frame.rotate) % 360.0
+        opacity = self._options.opacity * disabled * frame.opacity
         # 静态场景下参数不变，直接复用上次的缓存键，省掉每帧的哈希计算
         key_state = (
             str(render_name),
@@ -459,6 +594,9 @@ class IconWidget(QWidget):
             tuple(sorted((colors or {}).items(), key=repr)) if colors else None,
             opacity,
             rotate,
+            frame.shape,
+            smil_moment,
+            self._options.rotate_overflow,
             self._options.h_flip,
             self._options.v_flip,
         )
@@ -479,7 +617,9 @@ class IconWidget(QWidget):
                 rotate=rotate,
                 h_flip=self._options.h_flip,
                 v_flip=self._options.v_flip,
-                stable_scale=self._spin,
+                stable_scale=self._options.spin,
+                rotate_overflow=self._options.rotate_overflow,
+                frame=frame,
             )
         except UnsupportedSvgError as error:
             self._set_status("error")
@@ -491,6 +631,99 @@ class IconWidget(QWidget):
         self._fast_state = fast_state
         self._fast_pixmap = pixmap
         return pixmap
+
+    def _current_plan(self) -> smil_player.Plan | None:
+        """当前图标的 SMIL 播放计划。
+
+        Returns:
+            Plan；图标尚未加载、没有自带动画或写法不受支持时为 None。
+        """
+        try:
+            data = registry.get(self._name)
+        except IconNotFoundError:
+            return None
+        return smil_player.get_plan(data, str(self._name))
+
+    def _needs_frames(self) -> bool:
+        """此刻是否还需要共享时钟继续驱动重绘。
+
+        内置效果（animation=）一直需要；图标自带的 SMIL 动画只在播放中需要，
+        播完或暂停后让出定时器，避免空转。
+
+        Returns:
+            需要继续刷新时为 True。
+        """
+        if self._options.animation is not None:
+            return True
+        return self._smil_running() or (self._autoplay and not self._playhead.started)
+
+    def _smil_stale(self) -> bool:
+        """上次渲染的 SMIL 画面是否已经落后于现在应有的画面。
+
+        动画刚好播完（或被暂停）的那一刻，``_smil_running`` 已经是 False，
+        但上一次画出来的还是倒数第二帧；这时必须再画一次，才能停在真正的最终画面。
+
+        Returns:
+            需要重画时为 True。
+        """
+        plan = self._current_plan()
+        if plan is None:
+            return False
+        shown = self._smil_shown
+        if not self._playhead.started:
+            wanted = plan.finish
+        else:
+            wanted = smil_player.quantize(
+                plan, self._playhead.elapsed(get_spin_clock().elapsed())
+            )
+        return shown != wanted
+
+    def _smil_running(self) -> bool:
+        """图标自带的动画此刻是否还在变化（用来绕过静态快路径）。
+
+        Returns:
+            有动画、已开始、没暂停、且没有播到不再变化的完成态时为 True。
+        """
+        if not self._playhead.started or self._playhead.paused:
+            return False
+        plan = self._current_plan()
+        if plan is None:
+            return False
+        if plan.loops:
+            return True
+        return self._playhead.elapsed(get_spin_clock().elapsed()) < plan.duration
+
+    def _smil_frame(self, data: IconData, label: str) -> tuple[IconData, float | None]:
+        """把图标数据换成当前应显示的 SMIL 帧。
+
+        autoplay=False 且尚未调用 play() 时显示完成态；否则按播放头算出时刻。
+        没有自带动画的图标原样返回。
+
+        Args:
+            data: 图标数据
+            label: 用于日志的图标名
+
+        Returns:
+            (该帧对应的静态图标数据, 用于缓存键的时刻)；没有自带动画时时刻为 None。
+        """
+        plan = smil_player.get_plan(data, label)
+        if plan is None:
+            return data, None
+        clock = get_spin_clock()
+        if not self._playhead.started and self._autoplay:
+            self._playhead.start(clock.elapsed())
+            clock.add(self)
+        if not self._playhead.started:
+            moment = plan.finish
+        else:
+            moment = smil_player.quantize(plan, self._playhead.elapsed(clock.elapsed()))
+        try:
+            frame = smil_player.render_data(data, plan, moment)
+            self._smil_shown = moment
+            return frame, moment
+        except UnsupportedSmilError as error:
+            logger.warning("icon %s cannot be evaluated (%s); showing it as written", label, error)
+            return data, None
 
     def _start_loading_timer(self) -> None:
         """启动 50 毫秒间隔的加载轮询定时器。"""
@@ -600,6 +833,11 @@ class IconWidget(QWidget):
             "opacity": self._options.opacity,
             "disabled_opacity": self._options.disabled_opacity,
             "rotate": self._options.rotate,
+            "rotate_overflow": self._options.rotate_overflow,
+            "animation": self._options.animation,
+            "animation_period": self._options.animation_period,
+            "animation_depth": self._options.animation_depth,
+            "spin_period": self._options.spin_period,
             "h_flip": self._options.h_flip,
             "v_flip": self._options.v_flip,
         }

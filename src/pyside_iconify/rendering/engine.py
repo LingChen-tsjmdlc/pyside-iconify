@@ -19,7 +19,9 @@ from pyside_iconify._errors import (
 from pyside_iconify.core.names import parse_icon_name
 from pyside_iconify.core.registry import registry
 from pyside_iconify.core.types import IconName, RGBA, SizeSpec
+from pyside_iconify.rendering.motion import frame_at
 from pyside_iconify.rendering.placeholder import create_placeholder
+from pyside_iconify.rendering.smil_player import final_data
 from pyside_iconify.rendering.qt_adapter import (
     NormalizedColorValue,
     require_main_thread,
@@ -44,9 +46,12 @@ class IconOptions:
         selected_color_dark_theme: 深色主题下的选中颜色；None 时回退到 selected_color
         opacity: 整体不透明度；0 到 1
         disabled_opacity: 禁用模式下额外乘上的不透明度；0 到 1
-        spin: 是否持续旋转
-        spin_period: 旋转一周的秒数；正数
+        animation: 内置动画名称；"spin"、"pulse"、"breathe"、"ping"、"bounce" 或 None
+        animation_period: 动画一个周期的秒数；正数，已按动画类型填好默认值
+        animation_depth: 动画变化幅度；0 到 1，spin 和不动画时为 None
+        spin_period: 全局配置里旋转一周的秒数；正数
         rotate: 固定旋转角度；单位为度
+        rotate_overflow: 旋转时是否保持原大小；False 按角度自动缩小，True 不缩小
         h_flip: 是否水平翻转
         v_flip: 是否垂直翻转
     """
@@ -63,11 +68,19 @@ class IconOptions:
     selected_color_dark_theme: NormalizedColorValue | None
     opacity: float
     disabled_opacity: float
-    spin: bool
+    animation: str | None
+    animation_period: float
+    animation_depth: float | None
     spin_period: float
     rotate: float
+    rotate_overflow: bool
     h_flip: bool
     v_flip: bool
+
+    @property
+    def spin(self) -> bool:
+        """是否持续旋转；等价于 animation == "spin"。"""
+        return self.animation == "spin"
 
 
 class IconEngine(QIconEngine):
@@ -230,16 +243,20 @@ class IconEngine(QIconEngine):
             mode = QIcon.Mode.Normal
         elif self._state_mode == "hover" and mode != QIcon.Mode.Disabled:
             mode = QIcon.Mode.Active
+        # QIcon 只会被画一次，自己不会动：带 SMIL 动画的图标显示动画播完后的完成态
+        data = final_data(data, str(render_name))
         color, colors = _resolve_colors(self._options, mode)
         disabled = (
             self._options.disabled_opacity if mode == QIcon.Mode.Disabled else 1.0
         )
-        opacity = self._options.opacity * disabled
-        spin_angle = (
-            round((monotonic() / self._options.spin_period * 360.0) / 5.0) * 5.0
-            if self._options.spin
-            else 0.0
+        frame = frame_at(
+            self._options.animation,
+            monotonic(),
+            self._options.animation_period,
+            self._options.animation_depth,
         )
+        opacity = self._options.opacity * disabled * frame.opacity
+        spin_angle = round(frame.rotate / 5.0) * 5.0
         rotate = (self._options.rotate + spin_angle) % 360.0
         key = _cache_key(
             render_name,
@@ -252,6 +269,7 @@ class IconEngine(QIconEngine):
             opacity,
             self._options,
             rotate,
+            frame.shape,
         )
         try:
             return render_pixmap(
@@ -267,6 +285,8 @@ class IconEngine(QIconEngine):
                 h_flip=self._options.h_flip,
                 v_flip=self._options.v_flip,
                 stable_scale=self._options.spin,
+                rotate_overflow=self._options.rotate_overflow,
+                frame=frame,
             )
         except UnsupportedSvgError:
             return create_placeholder(width, height, scale)
@@ -418,6 +438,7 @@ def _cache_key(
     opacity: float,
     options: IconOptions,
     rotate: float,
+    shape: tuple[float, ...],
 ) -> str:
     """生成位图缓存键。
 
@@ -430,8 +451,9 @@ def _cache_key(
         color: 单色；映射表模式下为 None
         colors: 颜色映射表；单色模式下为 None
         opacity: 最终不透明度
-        options: 渲染选项，取其中的水平/垂直翻转
+        options: 渲染选项，取其中的水平/垂直翻转与旋转溢出
         rotate: 最终旋转角度，单位为度
+        shape: 动画带来的缩放、位移和残影取值，见 AnimationFrame.shape
 
     Returns:
         参数摘要的 SHA-256 十六进制字符串。
@@ -447,6 +469,8 @@ def _cache_key(
             tuple(sorted((colors or {}).items(), key=repr)),
             opacity,
             rotate,
+            shape,
+            options.rotate_overflow,
             options.h_flip,
             options.v_flip,
         )

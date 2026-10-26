@@ -29,6 +29,10 @@ class InvalidRotationError(IconifyError):
     """旋转值无效。"""
 
 
+class InvalidAnimationError(IconifyError):
+    """动画名称无效或参数互相冲突。"""
+
+
 class InvalidOpacityError(IconifyError):
     """透明度无效。"""
 

@@ -59,6 +59,7 @@ def get_icon(
     width: object | None = None,
     height: object | None = None,
     rotate: float = 0,
+    rotate_overflow: bool = False,
     spin: bool = False,
     h_flip: bool = False,
     v_flip: bool = False,
@@ -82,6 +83,8 @@ def get_icon(
         width: 单独覆盖宽度；None 沿用 size 的宽度。
         height: 单独覆盖高度；None 沿用 size 的高度。
         rotate: 旋转角度；单位为度，会对 360 取模。
+        rotate_overflow: 旋转时是否保持原大小；False 按角度自动缩小以免被裁切，
+            True 不缩小，铺满的图标旋转时四角可能被裁掉。
         spin: 是否持续旋转。
         h_flip: 是否水平翻转。
         v_flip: 是否垂直翻转。
@@ -104,6 +107,7 @@ def get_icon(
         height=height,
         spin=spin,
         rotate=rotate,
+        rotate_overflow=rotate_overflow,
         h_flip=h_flip,
         v_flip=v_flip,
     )

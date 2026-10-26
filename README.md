@@ -69,6 +69,9 @@ cached on disk, and rendered locally afterwards.
   shows a built-in placeholder and emits `failed`; optional `fallback` icon
 - **QSS friendly** — `qss="toolbar primary"` tags for grouping, style with
   native `setStyleSheet()`; priority: parameters → QSS → theme
+- **Animation built in** — `spin`, `pulse`, `breathe`, `ping`, `bounce`, plus
+  the self-animating icons of `line-md`, `meteocons` and `svg-spinners` play
+  as-is in `IconWidget` (SMIL only; see below)
 - **Typed and logged** — full type hints with `py.typed`, standard `logging`
   (silent by default)
 
@@ -79,10 +82,12 @@ Shared by `IconWidget` and `get_icon`:
 ```python
 get_icon(name, *, size=24, color=None, color_light_theme=None,
          color_dark_theme=None, selected_color=None, opacity=1.0,
-         width=None, height=None, rotate=0, spin=False,
-         h_flip=False, v_flip=False)
+         width=None, height=None, rotate=0, rotate_overflow=False,
+         spin=False, h_flip=False, v_flip=False)
 
-IconWidget(name, *, ..., hover_color=None, qss=None, parent=None)
+IconWidget(name, *, ..., hover_color=None, animation=None,
+           animation_period=None, animation_depth=None, autoplay=True,
+           speed=1.0, qss=None, parent=None)
 ```
 
 | Parameter                                | Meaning                                                                |
@@ -96,13 +101,49 @@ IconWidget(name, *, ..., hover_color=None, qss=None, parent=None)
 | `opacity`                                | Overall opacity 0–1; multiplied with color alpha                       |
 | `width` / `height`                       | Non-square icons; win over `size`                                      |
 | `rotate`                                 | Any angle in degrees, auto-shrunk to avoid clipping                    |
+| `rotate_overflow`                        | Keep the original size while rotating; corners may clip                |
 | `spin`                                   | Continuous rotation for loading indicators                             |
+| `animation` / `animation_period`         | IconWidget only: `"spin"`, `"pulse"`, `"breathe"`, `"ping"` or `"bounce"`; seconds per cycle |
+| `autoplay` / `speed`                     | IconWidget only: play the icon's own SMIL animation automatically; playback speed multiplier |
+| `animation_depth`                        | How strong the animation is, 0–1 (defaults: pulse 0.25, breathe 0.7, ping 1, bounce 0.25). ping and bounce draw the icon at 1/(1+depth) of the widget to leave room for the ripple and the jump |
 | `h_flip` / `v_flip`                      | Horizontal / vertical flip                                             |
 | `qss`                                    | QSS grouping tags, `IconWidget[qss~="tag"]` selector (IconWidget only) |
 
 Colors accept CSS/SVG names, HEX 3/4/6/8 digit (`#RRGGBBAA` order),
 `rgb()/rgba()/hsl()/hsla()`, tuples, `QColor`, and `Qt.GlobalColor`.
 Unparseable colors raise instead of silently turning black.
+
+## Animated icons (SMIL)
+
+Some Iconify sets (`line-md`, `meteocons`, `svg-spinners`, `eos-icons`, ...)
+ship icons that animate themselves. `IconWidget` plays them with no extra code:
+
+```python
+IconWidget("line-md:loading-loop", size=48)       # loops
+IconWidget("line-md:account")                     # draws itself once, then rests
+IconWidget("meteocons:partly-cloudy-day-rain", size=96)
+```
+
+```python
+w = IconWidget("line-md:account", autoplay=False, speed=0.5)
+w.play(); w.pause(); w.replay(); w.setSpeed(2)
+w.isAnimated(), w.isPlaying()
+```
+
+`get_icon()` and `set_icon()` return a standard `QIcon`, which cannot move on
+its own, so they show the **finished state** of the animation. Use `IconWidget`
+for the animated version. `is_animated("line-md:account")` tells whether an icon
+carries an animation (it works without Qt).
+
+Scope: **only SMIL is supported** (`<animate>`, `<set>`, `<animateTransform>`,
+`<animateMotion>` inside the SVG). Other kinds of animation, such as CSS
+animation, scripts, Lottie or GIF, are not played. An icon that uses a SMIL
+feature the library does not implement is drawn as a static image of its
+finished state and a warning is logged once.
+
+Animated frames are cached as bitmaps (trading memory for speed). A long
+looping icon at a large size can take several MiB of the default 32 MiB cache;
+raise it with `set_cache_limits()` if you show many of them at once.
 
 ## Offline packaging
 
@@ -132,12 +173,12 @@ slots.
 
 ## Support scope
 
-| Item         | Scope                             |
-| ------------ | --------------------------------- |
-| Python       | 3.10 – 3.14                       |
-| Qt binding   | PySide6                           |
+| Item         | Scope                               |
+| ------------ | ----------------------------------- |
+| Python       | 3.10 – 3.14                         |
+| Qt binding   | PySide6                             |
 | OS           | Windows, macOS, Linux (CI on macOS) |
-| PySide2/PyQt | Not supported (PyQt6 maybe later) |
+| PySide2/PyQt | Not supported (PyQt6 maybe later)   |
 
 ## Development
 

@@ -65,7 +65,7 @@ src/pyside_iconify/
 ├── _logging.py        # "pyside_iconify" logger, silent by default
 ├── core/              # pure data layer — no Qt
 ├── rendering/         # Qt drawing boundary
-├── widgets/           # IconWidget, animation
+├── widgets/           # IconWidget, shared animation clock, per-widget playhead
 ├── network/           # download, request merging, disk cache
 ├── integrations/      # set_icon adapters
 └── pack.py            # offline bundling (optional)
@@ -93,6 +93,8 @@ by future CLI/VSCode tooling, and testing without a `QApplication`. Qt objects
 | `colors.py`    | Names, HEX, RGB/HSL, mappings, `hex_argb()`, `hex_rgba()` |
 | `sizes.py`     | Numbers, `px`, `em` parsing                               |
 | `svg.py`       | SVG composition, alias transforms, 90° rotations          |
+| `smil.py`      | Parses SMIL animation in an icon body into a timeline     |
+| `smil_eval.py` | Evaluates a timeline at time `t` into a static SVG body   |
 
 ### rendering/ — the Qt drawing boundary
 
@@ -100,6 +102,8 @@ by future CLI/VSCode tooling, and testing without a `QApplication`. Qt objects
 | ---------------- | -------------------------------------------------- |
 | `engine.py`      | Custom `QIconEngine` behind `get_icon()`           |
 | `renderer.py`    | SVG → pixmap with color, opacity, rotation, DPR    |
+| `motion.py`      | Built-in effects (`spin`, `pulse`, `breathe`, `ping`, `bounce`) |
+| `smil_player.py` | Plays an icon's own SMIL animation: plan cache, frame quantization |
 | `cache.py`       | Three-layer cache: icon data → SVG text → bitmaps  |
 | `placeholder.py` | Built-in placeholder for missing/error states      |
 | `qt_adapter.py`  | Qt type conversion, main-thread checks, DPR access |
@@ -114,9 +118,27 @@ name + version + size + DPR + color + opacity + rotation + flip + mode/state,
 | File             | Responsibility                                          |
 | ---------------- | ------------------------------------------------------- |
 | `icon_widget.py` | `IconWidget`, theme following, QSS, fast-path caching   |
-| `animation.py`   | Shared `spin` clock, pause when hidden, angle quantized |
+| `animation.py`   | Shared animation clock (pauses when hidden or idle), per-widget `Playhead` |
 
-Widgets never parse JSON or manage collections. QSS uses PySide's native
+Widgets never parse JSON or manage collections.
+
+### Animation
+
+Two independent mechanisms share one clock and one bitmap cache:
+
+- **Built-in effects** (`animation="spin" | "pulse" | "breathe" | "ping" |
+  "bounce"`): pure functions of time in `motion.py`, applied while drawing.
+- **The icon's own SMIL animation** (`line-md`, `meteocons`, ...): `core/smil.py`
+  parses the icon body once into a timeline, `core/smil_eval.py` evaluates it at
+  a time `t` into a static SVG body, and the normal pipeline renders that body.
+  Qt's SVG renderer does not play SMIL, so the library supplies the clock.
+  **Only SMIL is supported**; an icon using a SMIL feature we do not implement
+  is shown as a static image of its finished state, with one warning logged.
+
+Qt does not support `clip-path`, an unprefixed `href`, or `transform-origin`,
+so the parser rewrites them (to `mask`, `xlink:href`, and an explicit
+`transform`) before evaluation. A `QIcon` cannot animate on its own, so
+`get_icon()` and `set_icon()` show the finished state. QSS uses PySide's native
 mechanism: `qss="toolbar"` sets a dynamic property, styling is written with
 `setStyleSheet()` using `IconWidget[qss~="toolbar"]` selectors. Priority:
 parameters → QSS → theme.
@@ -162,6 +184,7 @@ names, download once, emit a bundle; `load_bundle()` registers it at startup
 Three-layer cache with a memory budget (default 32 MiB), cache keys covering
 every visual parameter, static fast path in `IconWidget._pixmap` (params
 unchanged → reuse last pixmap, skipping locks/parsing/hashing), angle
-quantization for `spin`, benchmark in `benchmarks/`. Rule of thumb:
+quantization for `spin`, frame quantization for animated icons (at least 48
+frames per cycle, 60 per second for longer ones), benchmark in `benchmarks/`. Rule of thumb:
 measure first, optimize second. Large icon grids belong in item views with
 `get_icon`; `IconWidget` targets standalone icon slots.

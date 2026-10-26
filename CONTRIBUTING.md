@@ -41,6 +41,10 @@ each directory. The short version of "where does my change go":
   explicit opt-in via parameters.
 - **Platform behavior is verified with probes before being designed against**
   (offscreen platforms can differ from real ones; measure, then design).
+- **Keep `__init__.pyi` in sync.** Signatures in `src/pyside_iconify/__init__.pyi`
+  are written by hand; after changing a public signature, update the stub, then
+  run `python tools/sync_pyi_docs.py` to copy docstrings into it (editors show
+  them on hover). `--check` reports drift without writing.
 - Comments stay minimal — what/why, no debugging history.
 - No emoji in code, docs, or commit messages.
 

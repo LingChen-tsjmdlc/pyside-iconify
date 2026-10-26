@@ -11,6 +11,7 @@ from pyside_iconify._errors import (
     IconNotFoundError,
     IconNotLoadedError,
     IconifyError,
+    InvalidAnimationError,
     InvalidColorError,
     InvalidIconDataError,
     InvalidIconNameError,
@@ -32,10 +33,11 @@ from pyside_iconify._errors import (
 )
 from pyside_iconify.core.colors import hex_argb, hex_rgba, parse_color
 from pyside_iconify.core.registry import registry
+from pyside_iconify.core.smil import is_supported_animation
 from pyside_iconify.core.svg import collect_paints
 from pyside_iconify.core.types import IconData
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 def add_icon(name: str, data: IconData | str, *, replace: bool = False) -> None:
@@ -90,6 +92,21 @@ def is_monotone(icon: str) -> bool:
         图标没有固定颜色时为 True。
     """
     return not collect_paints(registry.get(icon).body)
+
+
+def is_animated(icon: str) -> bool:
+    """判断图标是否带有可播放的 SMIL 动画。
+
+    只认 SMIL（SVG 内置的 animate、set、animateTransform、animateMotion）。
+    CSS 动画、脚本动画等其他形式不属于播放范围，这类图标和普通静态图一样显示。
+
+    Args:
+        icon: 已注册的图标名。
+
+    Returns:
+        图标含有本库能播放的 SMIL 动画时为 True。
+    """
+    return is_supported_animation(registry.get(icon).body)
 
 
 def get_icon_colors(icon: str) -> tuple[str, ...]:
@@ -167,6 +184,7 @@ __all__ = [
     "IconWidget",
     "IconifyClient",
     "IconifyError",
+    "InvalidAnimationError",
     "InvalidColorError",
     "InvalidIconDataError",
     "InvalidIconNameError",
@@ -196,6 +214,7 @@ __all__ = [
     "get_pixmap",
     "hex_argb",
     "hex_rgba",
+    "is_animated",
     "is_monotone",
     "is_offline",
     "load_bundle",

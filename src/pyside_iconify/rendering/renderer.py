@@ -15,6 +15,7 @@ from pyside_iconify._errors import UnsupportedSvgError
 from pyside_iconify.core.svg import build_svg
 from pyside_iconify.core.types import IconData, RGBA
 from pyside_iconify.rendering.cache import pixmap_cache, svg_cache
+from pyside_iconify.rendering.motion import STATIC_FRAME, AnimationFrame
 
 
 def render_pixmap(
@@ -31,6 +32,8 @@ def render_pixmap(
     h_flip: bool = False,
     v_flip: bool = False,
     stable_scale: bool = False,
+    rotate_overflow: bool = False,
+    frame: AnimationFrame = STATIC_FRAME,
 ) -> QPixmap:
     """渲染并缓存指定参数的 SVG 位图。
 
@@ -49,6 +52,10 @@ def render_pixmap(
         h_flip: 是否在图标数据自带翻转基础上再水平翻转
         v_flip: 是否在图标数据自带翻转基础上再垂直翻转
         stable_scale: 为 True 时按 45 度旋转计算缩放，使旋转过程中大小不变
+        rotate_overflow: 为 True 时不随旋转角度缩小，保持不旋转时的大小；
+            旋转后超出画布的部分会被裁掉。优先于 stable_scale
+        frame: 动画取值；只用其中的 scale、offset_y、ghost_scale、ghost_opacity，
+            旋转和不透明度已由调用方折算进 rotate、opacity。默认为静止
 
     Returns:
         设置了设备像素比的 QPixmap。
@@ -92,6 +99,8 @@ def render_pixmap(
         transformed_data.height,
         rotate,
         stable_scale,
+        rotate_overflow,
+        frame,
     )
     painter.end()
     pixmap = QPixmap.fromImage(image)
@@ -109,8 +118,10 @@ def _render_rotated(
     source_height: float,
     rotate: float,
     stable_scale: bool = False,
+    rotate_overflow: bool = False,
+    frame: AnimationFrame = STATIC_FRAME,
 ) -> None:
-    """绕画布中心旋转并等比缩放，使旋转后的图标完整落在画布内。
+    """绕画布中心旋转并等比缩放；默认让旋转后的图标完整落在画布内。
 
     Args:
         painter: 目标画笔
@@ -121,18 +132,74 @@ def _render_rotated(
         source_height: SVG 源高度
         rotate: 旋转角度，单位为度
         stable_scale: 为 True 时按 45 度旋转计算缩放，使旋转过程中大小不变
+        rotate_overflow: 为 True 时按 0 度计算缩放，旋转时不缩小；优先于 stable_scale
+        frame: 动画取值；本体按 scale 缩放、按 offset_y 竖直位移，
+            有水波残影时先画残影再画本体
     """
-    scale_angle = 45.0 if stable_scale else rotate
+    if rotate_overflow:
+        scale_angle = 0.0
+    else:
+        scale_angle = 45.0 if stable_scale else rotate
     radians = math.radians(scale_angle)
     cosine = abs(math.cos(radians))
     sine = abs(math.sin(radians))
     bounding_width = source_width * cosine + source_height * sine
     bounding_height = source_width * sine + source_height * cosine
     scale = min(canvas_width / bounding_width, canvas_height / bounding_height)
-    painter.translate(canvas_width / 2, canvas_height / 2)
+    if frame.ghost_opacity > 0.0 and frame.ghost_scale > 0.0:
+        opacity = painter.opacity()
+        painter.setOpacity(opacity * frame.ghost_opacity)
+        _draw_icon(
+            painter,
+            renderer,
+            canvas_width / 2,
+            canvas_height / 2,
+            source_width,
+            source_height,
+            rotate,
+            scale * frame.ghost_scale,
+        )
+        painter.setOpacity(opacity)
+    _draw_icon(
+        painter,
+        renderer,
+        canvas_width / 2,
+        canvas_height / 2 + canvas_height * frame.offset_y,
+        source_width,
+        source_height,
+        rotate,
+        scale * frame.scale,
+    )
+
+
+def _draw_icon(
+    painter: QPainter,
+    renderer: QSvgRenderer,
+    center_x: float,
+    center_y: float,
+    source_width: float,
+    source_height: float,
+    rotate: float,
+    scale: float,
+) -> None:
+    """以指定中心、旋转角度和缩放画一次图标，不改变画笔的其他状态。
+
+    Args:
+        painter: 目标画笔
+        renderer: 已加载 SVG 的渲染器
+        center_x: 图标中心的横坐标，物理像素
+        center_y: 图标中心的纵坐标，物理像素
+        source_width: SVG 源宽度
+        source_height: SVG 源高度
+        rotate: 旋转角度，单位为度
+        scale: 相对 SVG 源尺寸的缩放
+    """
+    painter.save()
+    painter.translate(center_x, center_y)
     painter.rotate(rotate)
     painter.scale(scale, scale)
     renderer.render(
         painter,
         QRectF(-source_width / 2, -source_height / 2, source_width, source_height),
     )
+    painter.restore()
