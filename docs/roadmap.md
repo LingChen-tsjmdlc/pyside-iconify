@@ -5,16 +5,16 @@ Progress and plans for pyside-iconify. Architecture background lives in
 
 ## Status
 
-| Step | Scope                               | State                                             |
-| ---- | ----------------------------------- | ------------------------------------------------- |
-| 0    | Design, skeleton, packaging         | Done                                              |
-| 1    | Offline icon rendering              | Done (multi-screen HiDPI on-device check pending) |
-| 2    | Network download + disk cache       | Done                                              |
-| 3    | Integrations, hover, packing        | Done (on-device acceptance pending)               |
-| 4    | Open-source release standardization | Done (1.0.0 on PyPI)                              |
-| 5    | 1.1.0: animation                    | Done                                              |
-| 6    | 1.2.0: more bindings                | **In progress** (on-device acceptance pending)    |
-| 7    | 1.3.0: tooling and website          | Planned                                           |
+| Step | Scope                                | State                                             |
+| ---- | ------------------------------------ | ------------------------------------------------- |
+| 0    | Design, skeleton, packaging          | Done                                              |
+| 1    | Offline icon rendering               | Done (multi-screen HiDPI on-device check pending) |
+| 2    | Network download + disk cache        | Done                                              |
+| 3    | Integrations, hover, packing         | Done (on-device acceptance pending)               |
+| 4    | Open-source release standardization  | Done (1.0.0 on PyPI)                              |
+| 5    | 1.1.0: animation                     | Done                                              |
+| 6    | 1.2.0: more bindings                 | Done                                              |
+| 7    | Ecosystem: MCP, website, IDE plugins | Planned (separate repositories)                   |
 
 ## Step 4 — release standardization
 
@@ -56,11 +56,16 @@ Theme: animation. Released only after every item below is done and accepted.
       still checked in CI
 - [x] Maintainer acceptance on real hardware (Qt5 HiDPI, cross-screen drag)
 
-## Step 7 — 1.3.0
+## Step 7 — ecosystem
 
-- [ ] MCP support
-- [ ] Official website and documentation
-- [ ] VS Code extension and JetBrains plugin for icon search and documentation
+Separate projects around the library. Each one lives in its own repository and
+has its own version number; the `pyside-iconify` package is released again only
+when one of them needs a new public API from it.
+
+- [ ] MCP server (own repository, depends on `pyside-iconify`)
+- [ ] Official website and documentation (own repository)
+- [ ] VS Code extension (own repository): icon search and documentation
+- [ ] JetBrains plugin (own repository): icon search and documentation
 
 ## Later
 
