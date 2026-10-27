@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QLocale
+from _qt import QLocale
 
 _language = "zh" if QLocale.system().language() == QLocale.Language.Chinese else "en"
 _listeners: list[Callable[[], None]] = []

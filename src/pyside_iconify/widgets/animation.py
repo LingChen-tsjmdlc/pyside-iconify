@@ -5,8 +5,7 @@ from __future__ import annotations
 import weakref
 from time import monotonic
 
-from PySide6.QtCore import QObject, QTimer
-from PySide6.QtWidgets import QWidget
+from pyside_iconify._qt import QObject, QTimer, QWidget
 
 
 class SpinClock(QObject):

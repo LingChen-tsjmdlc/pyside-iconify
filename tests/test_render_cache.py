@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtGui import QPalette, QColor
-from PySide6.QtWidgets import QApplication, QWidget
+from tests.qt import QApplication, QColor, QPalette, QWidget
 
 from pyside_iconify import add_collection, IconWidget
 

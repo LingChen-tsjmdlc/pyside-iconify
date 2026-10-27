@@ -5,9 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import TypeAlias
 
-from PySide6.QtCore import QCoreApplication, QSize, QThread, Qt
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication
+from pyside_iconify._qt import (
+    QApplication,
+    QColor,
+    QCoreApplication,
+    QSize,
+    Qt,
+    QThread,
+)
 
 from pyside_iconify._errors import (
     InvalidColorError,
@@ -79,10 +84,30 @@ def normalize_color(value: ColorScalar) -> RGBA:
     except InvalidColorError:
         if not isinstance(value, str):
             raise
-        color = QColor.fromString(value)
+        color = _named_color(value)
         if not color.isValid():
             raise
         return RGBA(color.red(), color.green(), color.blue(), color.alpha())
+
+
+def _named_color(name: str) -> QColor:
+    """按 Qt 的命名颜色表解析颜色名（如 "red"、"rebeccapurple"）。
+
+    Qt 6.4 起有 ``QColor.fromString``；更旧的 Qt 只能用构造函数，而无效名字会让
+    构造函数向控制台打警告，所以先用 ``isValidColor`` 判断。
+
+    Args:
+        name: 颜色名
+
+    Returns:
+        对应的 QColor；名字无效时返回无效的 QColor。
+    """
+    from_string = getattr(QColor, "fromString", None)
+    if from_string is not None:
+        return from_string(name)
+    if QColor.isValidColor(name):
+        return QColor(name)
+    return QColor()
 
 
 def normalize_mapping(value: ColorMapping) -> dict[RGBA | str, RGBA]:

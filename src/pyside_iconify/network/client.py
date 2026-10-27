@@ -5,8 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from threading import RLock
 
-from PySide6.QtCore import QEventLoop, QObject, QTimer, Signal
-from PySide6.QtWidgets import QApplication
+from pyside_iconify._qt import (
+    QApplication,
+    QEventLoop,
+    QObject,
+    QTimer,
+    Signal,
+    run_event_loop,
+)
 
 from pyside_iconify._errors import (
     ClientClosedError,
@@ -60,7 +66,7 @@ class LoadRequest(QObject):
             self.finished.connect(self._loop.quit)
             if timeout_ms is not None:
                 QTimer.singleShot(timeout_ms, self._loop.quit)
-            self._loop.exec()
+            run_event_loop(self._loop)
         return dict(self._results)
 
     def cancel(self) -> None:

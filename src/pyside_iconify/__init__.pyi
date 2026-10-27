@@ -1,9 +1,16 @@
 from collections.abc import Callable, Mapping, Sequence
 from typing import TypeAlias
 
-from PySide6.QtCore import QObject, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPixmap
-from PySide6.QtWidgets import QWidget
+from pyside_iconify._qt import (
+    QColor as QColor,
+    QIcon as QIcon,
+    QObject as QObject,
+    QPixmap as QPixmap,
+    QSize as QSize,
+    Qt as Qt,
+    QWidget as QWidget,
+    Signal as Signal,
+)
 
 from pyside_iconify._config import DefaultConfig
 from pyside_iconify.core.registry import IconRegistry

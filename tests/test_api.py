@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QPushButton
+from tests.qt import QIcon, QPushButton, QSize
 
 from pyside_iconify import (
     IconData,

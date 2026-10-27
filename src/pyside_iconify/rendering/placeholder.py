@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
+from pyside_iconify._qt import QColor, QPainter, QPen, QPixmap, QRectF, Qt
 
 
 def create_blank(width: int, height: int, device_pixel_ratio: float) -> QPixmap:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from PySide6.QtGui import QPixmap
+from pyside_iconify._qt import QPixmap
 
 from pyside_iconify._logging import logger
 

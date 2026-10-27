@@ -11,8 +11,7 @@ pytestmark = pytest.mark.skipif(
     reason="PYSIDE_ICONIFY_NO_NETWORK is set",
 )
 
-from PySide6.QtCore import QSize
-from PySide6.QtWidgets import QApplication, QPushButton
+from tests.qt import QApplication, QPushButton, QSize
 
 from pyside_iconify import IconWidget, get_icon
 from pyside_iconify.core.registry import registry

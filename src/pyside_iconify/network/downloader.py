@@ -7,8 +7,17 @@ from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QTimer, QUrl, Signal
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from pyside_iconify._qt import (
+    QCoreApplication,
+    QEvent,
+    QNetworkAccessManager,
+    QNetworkReply,
+    QNetworkRequest,
+    QObject,
+    QTimer,
+    QUrl,
+    Signal,
+)
 
 from pyside_iconify._errors import (
     ClientClosedError,

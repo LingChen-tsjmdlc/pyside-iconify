@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtWidgets import QApplication
+from tests.qt import QApplication, QObject, Signal
 
 from pyside_iconify._errors import (
     IconNotFoundError,

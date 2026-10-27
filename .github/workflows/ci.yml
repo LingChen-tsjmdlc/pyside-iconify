@@ -1,25 +1,154 @@
 name: CI
 
+# 推送分支和拉取请求时运行；发布工作流（publish.yml）也会把本文件作为
+# 前置检查调用（workflow_call），测试不过就不会发布。
+# 只在分支推送时触发，避免推送版本标签时同一套测试跑两遍。
 on:
     push:
+        branches: ["**"]
     pull_request:
+    workflow_call:
 
 jobs:
-    test:
-        name: Test | macOS Python ${{ matrix.python-version }}
+    # PySide6 是一等支持：覆盖 3.10 到 3.14 全部版本
+    test-pyside6:
+        name: PySide6 | macOS Python ${{ matrix.python-version }}
         runs-on: macos-latest
         strategy:
             fail-fast: false
             matrix:
-                python-version: ["3.10", "3.13", "3.14"]
+                python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         steps:
             - name: 检出代码
               uses: actions/checkout@v4
             - name: 安装 uv
               uses: astral-sh/setup-uv@v4
+              with:
+                  enable-cache: true
             - name: 安装 Python
               run: uv python install ${{ matrix.python-version }}
             - name: 同步锁定依赖
               run: uv sync --extra pyside6 --group test
             - name: 运行 Qt 回归测试
               run: uv run pytest -v --tb=short
+
+    # PyQt6 同样是一等支持：覆盖 3.10 到 3.14 全部版本
+    test-pyqt6:
+        name: PyQt6 | macOS Python ${{ matrix.python-version }}
+        runs-on: macos-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        steps:
+            - name: 检出代码
+              uses: actions/checkout@v4
+            - name: 安装 uv
+              uses: astral-sh/setup-uv@v4
+              with:
+                  enable-cache: true
+            - name: 安装 Python
+              run: uv python install ${{ matrix.python-version }}
+            - name: 同步锁定依赖
+              run: uv sync --extra pyqt6 --group test
+            - name: 运行 Qt 回归测试
+              run: uv run pytest -v --tb=short
+
+    # PyQt5 为兼容支持，同样覆盖 3.10 到 3.14，与文档中的支持范围一致
+    test-pyqt5:
+        name: PyQt5 | macOS Python ${{ matrix.python-version }}
+        runs-on: macos-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        steps:
+            - name: 检出代码
+              uses: actions/checkout@v4
+            - name: 安装 uv
+              uses: astral-sh/setup-uv@v4
+              with:
+                  enable-cache: true
+            - name: 安装 Python
+              run: uv python install ${{ matrix.python-version }}
+            - name: 同步锁定依赖
+              run: uv sync --extra pyqt5 --group test
+            - name: 运行 Qt 回归测试
+              run: uv run pytest -v --tb=short
+
+    # PySide2 为兼容支持，不进门槛：官方 wheel 在 macOS 上只有 Intel 版本，
+    # 在 Apple Silicon 的 runner 上装不上。这里在 Intel runner 的 Python 3.10 上尽力运行，
+    # 失败不阻塞合并；维护者在本机验收是主要手段。
+    test-pyside2:
+        name: PySide2 (best effort) | macOS Intel Python 3.10
+        runs-on: macos-13
+        continue-on-error: true
+        steps:
+            - name: 检出代码
+              uses: actions/checkout@v4
+            - name: 安装 uv
+              uses: astral-sh/setup-uv@v4
+              with:
+                  enable-cache: true
+            - name: 安装 Python
+              run: uv python install 3.10
+            - name: 同步锁定依赖
+              run: uv sync --python 3.10 --extra pyside2 --group test
+            - name: 运行 Qt 回归测试
+              run: uv run pytest -v --tb=short
+
+    # 类型提示检查：每个绑定分别从构建出的 wheel 安装，用 pyright 与 mypy 断言类型精确。
+    # 这是防止以后改坏 _qt.pyi 的唯一办法，见 tools/gen_qt_stubs.py。
+    typing:
+        name: Types | ${{ matrix.binding }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - binding: pyside6
+                      python: "3.13"
+                      qt_module: PySide6
+                    - binding: pyqt6
+                      python: "3.13"
+                      qt_module: PyQt6
+                    - binding: pyqt5
+                      python: "3.13"
+                      qt_module: PyQt5
+                    - binding: pyside2
+                      python: "3.10"
+                      qt_module: PySide2
+        steps:
+            - name: 检出代码
+              uses: actions/checkout@v4
+            - name: 安装 uv
+              uses: astral-sh/setup-uv@v4
+              with:
+                  enable-cache: true
+            - name: 存根是否与库同步
+              run: python3 tools/gen_qt_stubs.py --check
+            - name: 构建主包和存根小包
+              run: |
+                  uv build --out-dir dist
+                  for k in pyqt6 pyqt5 pyside2; do uv build --out-dir dist "stubs/$k"; done
+            - name: 在干净环境里按 extra 安装
+              run: |
+                  uv venv --python ${{ matrix.python }} .typing
+                  uv pip install --python .typing/bin/python --find-links dist \
+                      "pyside-iconify[${{ matrix.binding }}]" mypy pyright
+            - name: 断言类型精确
+              run: |
+                  mkdir -p typing_check
+                  cat > typing_check/check.py <<'EOF'
+                  from ${{ matrix.qt_module }}.QtWidgets import QVBoxLayout
+                  from pyside_iconify import IconWidget
+                  w = IconWidget("mdi:home", size=24)
+                  reveal_type(w.size())
+                  QVBoxLayout().addWidget(w)
+                  EOF
+                  cd typing_check
+                  ../.typing/bin/pyright --pythonpath ../.typing/bin/python check.py | tee pyright.txt
+                  ../.typing/bin/python -m mypy check.py --no-incremental | tee mypy.txt
+                  grep -q 'Type of "w.size()" is "QSize"' pyright.txt
+                  grep -q 'Revealed type is "${{ matrix.qt_module }}.QtCore.QSize"' mypy.txt
+                  ! grep -qE 'error' pyright.txt mypy.txt

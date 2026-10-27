@@ -14,7 +14,7 @@ pytestmark = pytest.mark.skipif(
     reason="PYSIDE_ICONIFY_NO_NETWORK is set",
 )
 
-from PySide6.QtCore import QObject, Signal
+from tests.qt import QObject, Signal
 
 from pyside_iconify import get_pixmap, get_icon_data
 from pyside_iconify._errors import IconNotFoundError
@@ -26,7 +26,7 @@ from pyside_iconify.network.downloader import DownloadResult, IconDownloader
 
 def wait_until(predicate: object, timeout_s: float = 15.0) -> bool:
     """处理事件循环直到条件成立或超时。"""
-    from PySide6.QtWidgets import QApplication
+    from tests.qt import QApplication
 
     app = QApplication.instance()
     deadline = timeout_s

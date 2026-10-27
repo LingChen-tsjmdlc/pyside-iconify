@@ -4,19 +4,22 @@ Icons are not registered locally, so each one is fetched from the Iconify API on
 first use and the list repaints by itself when the data arrives. Needs network.
 
 Run: uv run examples/async_loading.py
+Other Qt binding: uv run --isolated --extra pyqt6 examples/async_loading.py
+(or --extra pyqt5; PySide2: --python 3.10 --extra pyside2)
 """
 
 from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import (
-    QApplication,
+from _qt import (
     QLabel,
     QListWidget,
     QListWidgetItem,
     QVBoxLayout,
     QWidget,
+    make_app,
+    run,
 )
 
 from _common import add_controls
@@ -33,7 +36,7 @@ ICON_NAMES = [
 
 def main() -> int:
     """运行示例。"""
-    app = QApplication(sys.argv)
+    app = make_app(sys.argv)
     window = QWidget()
     window.setMinimumSize(420, 500)
     bind(window.setWindowTitle, "Async loading", "异步加载")
@@ -98,7 +101,7 @@ def main() -> int:
 
     load_icons(ICON_NAMES[:5], on_finished=on_finished)
     window.show()
-    return app.exec()
+    return run(app)
 
 
 if __name__ == "__main__":

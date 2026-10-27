@@ -4,14 +4,15 @@ Covers push buttons, tab pages, list items and tree nodes. Anything else with a
 setIcon works through get_icon; see the README.
 
 Run: uv run examples/set_icon_targets.py
+Other Qt binding: uv run --isolated --extra pyqt6 examples/set_icon_targets.py
+(or --extra pyqt5; PySide2: --python 3.10 --extra pyside2)
 """
 
 from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import (
-    QApplication,
+from _qt import (
     QGroupBox,
     QListWidget,
     QListWidgetItem,
@@ -21,6 +22,8 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    make_app,
+    run,
 )
 
 from _common import add_controls
@@ -111,10 +114,10 @@ def build_window() -> QWidget:
 
 def main() -> int:
     """运行示例。"""
-    app = QApplication(sys.argv)
+    app = make_app(sys.argv)
     window = build_window()
     window.show()
-    return app.exec()
+    return run(app)
 
 
 if __name__ == "__main__":

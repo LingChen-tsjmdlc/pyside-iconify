@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyside-iconify-stubs-pyqt6"
+version = "1.2.0"
+description = "Type stubs that make pyside-iconify's types resolve to PyQt6."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = []
+classifiers = [
+    "Typing :: Stubs Only",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Source = "https://github.com/LingChen-tsjmdlc/pyside-iconify"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pyside_iconify-stubs"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/pyside_iconify-stubs", "/README.md"]

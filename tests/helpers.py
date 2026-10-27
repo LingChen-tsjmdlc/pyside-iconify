@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QColor, QIcon
-from PySide6.QtWidgets import QApplication, QWidget
+from tests.qt import QApplication, QColor, QIcon, QSize, QWidget
 
 
 def show_widget(
@@ -41,3 +39,15 @@ def icon_color(
 def assert_color(color: QColor, expected: str) -> None:
     """断言颜色名称匹配。"""
     assert color.name() == expected
+
+
+def image_bytes(image: object) -> bytes:
+    """把 QImage 的像素数据取成 bytes，用来比较两帧是否完全相同。
+
+    PySide 的 constBits() 返回可转 bytes 的缓冲区；PyQt 返回 sip.voidptr，
+    必须带上长度调用 asstring()。
+    """
+    bits = image.constBits()
+    if hasattr(bits, "asstring"):
+        return bytes(bits.asstring(image.sizeInBytes()))
+    return bytes(bits)

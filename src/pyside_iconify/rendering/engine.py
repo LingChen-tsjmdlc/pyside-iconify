@@ -7,9 +7,18 @@ from hashlib import sha256
 from time import monotonic
 from collections.abc import Mapping
 
-from PySide6.QtCore import QSize, Qt, QRectF
-from PySide6.QtGui import QIcon, QIconEngine, QPalette, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication
+from pyside_iconify._qt import (
+    SCALED_PIXMAP_GETS_PHYSICAL_SIZE,
+    QApplication,
+    QIcon,
+    QIconEngine,
+    QPainter,
+    QPalette,
+    QPixmap,
+    QRectF,
+    QSize,
+    Qt,
+)
 
 from pyside_iconify._errors import (
     IconNotFoundError,
@@ -161,10 +170,16 @@ class IconEngine(QIconEngine):
         return QSize(round(self._options.size.width), round(self._options.size.height))
 
     def pixmap(self, size: QSize, mode: QIcon.Mode, state: QIcon.State) -> QPixmap:
-        """按缩放比 1.0 渲染位图。
+        """按收到的尺寸、缩放比 1.0 渲染位图。
+
+        Qt6 通常不走这里，而是调用带缩放比的 scaledPixmap。Qt5（PyQt5、PySide2）
+        只会调用本方法：应用开启 AA_UseHighDpiPixmaps 时，Qt 已经把请求尺寸乘上了
+        屏幕缩放比（逻辑 24 像素在 2 倍屏上传进来的是 48），所以按收到的尺寸直接
+        渲染就是物理像素，QIcon 再自行标注缩放比。应用没开该属性时 Qt5 只请求
+        1 倍尺寸，图标在高分屏上会偏糊，这是 Qt5 的行为，库不替应用打开全局开关。
 
         Args:
-            size: 目标逻辑尺寸
+            size: 请求的像素尺寸（Qt5 开启高分屏位图时为物理像素）
             mode: 图标模式，决定颜色与禁用不透明度
             state: 图标状态（此处未使用）
 
@@ -196,8 +211,11 @@ class IconEngine(QIconEngine):
         图标仍在加载时返回空白位图；加载失败时使用配置的 fallback 图标，
         fallback 也不可用或 SVG 不受支持时返回问号占位图。
 
+        Qt 6.8 之前，QIcon.pixmap 传给本方法的 size 已经乘过缩放比（Qt 的已知问题，
+        6.8 起修复为逻辑尺寸），这里按 Qt 版本还原，保证各版本画出的物理像素一致。
+
         Args:
-            size: 目标逻辑尺寸
+            size: 目标尺寸；Qt 6.8 起是逻辑尺寸，更早的 Qt6 是物理尺寸
             mode: 图标模式，决定颜色与禁用不透明度
             state: 图标状态（此处未使用）
             scale: 设备像素比
@@ -208,6 +226,10 @@ class IconEngine(QIconEngine):
         require_main_thread()
         width = max(1, size.width())
         height = max(1, size.height())
+        if SCALED_PIXMAP_GETS_PHYSICAL_SIZE and scale > 1.0:
+            # Qt 6.8 之前传进来的已经是物理像素，还原成逻辑尺寸，否则会再乘一次缩放比
+            width = max(1, round(width / scale))
+            height = max(1, round(height / scale))
         render_name = self._name
         if registry.is_pending(render_name):
             from pyside_iconify.rendering.placeholder import create_blank

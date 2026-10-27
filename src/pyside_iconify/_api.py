@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QFontMetrics, QIcon, QPixmap
+from pyside_iconify._qt import QFontMetrics, QIcon, QPixmap, QSize
 
 from pyside_iconify._config import (
     get_default_config,

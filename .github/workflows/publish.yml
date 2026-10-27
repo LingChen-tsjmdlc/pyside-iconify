@@ -4,24 +4,46 @@ name: Publish to PyPI
 #
 # Release flow: push a version tag (for example `git tag v1.0.0 && git push
 # origin v1.0.0`). The workflow then
-#   1. builds the package and checks the tag matches __version__,
-#   2. waits for approval of the `pypi-release` environment,
-#   3. publishes to PyPI,
-#   4. creates the GitHub Release (notes generated, artifacts attached).
+#   1. runs the whole CI (tests for every binding, type checks); a failure
+#      stops the release,
+#   2. builds the package and checks the tag matches __version__,
+#   3. waits for approval of each package's environment (if it has required
+#      reviewers),
+#   4. publishes to PyPI,
+#   5. creates the GitHub Release (notes generated, artifacts attached).
 # The Release is only created after PyPI accepted the upload.
 #
 # Manual run ("Run workflow" in Actions): choose testpypi or pypi. No GitHub
 # Release is created for manual runs.
 #
+# Four packages are published together from the same tag:
+#   pyside-iconify                   the library
+#   pyside-iconify-stubs-pyqt6       type stubs only (one extra per Qt binding,
+#   pyside-iconify-stubs-pyqt5       see tools/gen_qt_stubs.py)
+#   pyside-iconify-stubs-pyside2
+# The library's pyqt6/pyqt5/pyside2 extras pin the stub package at the exact same
+# version, so the stub packages MUST be uploaded first, otherwise
+# `pip install "pyside-iconify[pyqt6]"` fails in the window between uploads.
+# The publish jobs therefore run as a matrix with max-parallel 1 in a fixed order
+# (stubs first, library last): the PyPI upload action handles one project per
+# run, and each package has its own trusted-publisher entry.
+#
 # One-time setup (on pypi.org and test.pypi.org, Account -> Publishing ->
-# "Add a new pending publisher"):
-#   Project name:     pyside-iconify
+# "Add a new pending publisher"). Repeat it for EACH of the four project names.
+# PyPI refuses two pending publishers with the same repository + workflow +
+# environment, so every stub package gets its own environment name:
+#   Project name                    Environment (PyPI)        Environment (TestPyPI)
+#   pyside-iconify                  pypi-release              testpypi-release
+#   pyside-iconify-stubs-pyqt6      pypi-release-pyqt6        testpypi-release-pyqt6
+#   pyside-iconify-stubs-pyqt5      pypi-release-pyqt5        testpypi-release-pyqt5
+#   pyside-iconify-stubs-pyside2    pypi-release-pyside2      testpypi-release-pyside2
+# The other fields are the same for all of them:
 #   Owner:            LingChen-tsjmdlc
 #   Repository name:  pyside-iconify
 #   Workflow name:    publish.yml
-#   Environment name: pypi-release (PyPI) / testpypi-release (TestPyPI)
 # Then create the same environments under the repository's
-# Settings -> Environments.
+# Settings -> Environments, each with "Required reviewers" if you want a
+# manual approval before every upload.
 
 on:
     push:
@@ -39,8 +61,17 @@ on:
                     - pypi
 
 jobs:
+    # Release gate: the full CI (every binding test matrix and the type checks)
+    # must pass first. If any required job fails, nothing below runs and
+    # nothing is published. (PySide2 is best effort in ci.yml and does not
+    # block, see the comment there.)
+    test:
+        name: Tests
+        uses: ./.github/workflows/ci.yml
+
     build:
         name: Build
+        needs: test
         runs-on: ubuntu-latest
         steps:
             - name: Check out code
@@ -60,18 +91,28 @@ jobs:
                   echo "package version: $version, tag: $tag"
                   test "$version" = "$tag"
 
-            - name: Build wheel and sdist
+            - name: Check stubs are in sync and pinned to this version
+              run: python3 tools/gen_qt_stubs.py --check
+
+            - name: Build wheels and sdists (library and stub packages)
               run: |
                   rm -rf dist/
-                  uv build
-                  ls -la dist/
+                  uv build --out-dir dist/pyside-iconify
+                  for binding in pyqt6 pyqt5 pyside2; do
+                      uv build --out-dir "dist/pyside-iconify-stubs-$binding" "stubs/$binding"
+                  done
+                  ls -laR dist/
 
             - name: Check artifacts
               run: |
-                  python -m zipfile -l dist/*.whl | grep "pyside_iconify/py.typed"
-                  python -m zipfile -l dist/*.whl | grep -E "\.workbuddy|\.vscode|__pycache__|\.pytest_cache" && exit 1 || true
-                  tar -tzf dist/*.tar.gz | grep -E "\.workbuddy|\.vscode|__pycache__|\.pytest_cache" && exit 1 || true
-                  uvx twine check dist/*
+                  python -m zipfile -l dist/pyside-iconify/pyside_iconify-*.whl | grep "pyside_iconify/py.typed"
+                  python -m zipfile -l dist/pyside-iconify/pyside_iconify-*.whl | grep "pyside_iconify/_qt.pyi"
+                  for binding in pyqt6 pyqt5 pyside2; do
+                      python -m zipfile -l dist/pyside-iconify-stubs-${binding}/pyside_iconify_stubs_${binding}-*.whl | grep "pyside_iconify-stubs/_qt.pyi"
+                  done
+                  for f in dist/*/*.whl; do python -m zipfile -l "$f"; done | grep -E "\.workbuddy|\.vscode|__pycache__|\.pytest_cache" && exit 1 || true
+                  for f in dist/*/*.tar.gz; do tar -tzf "$f"; done | grep -E "\.workbuddy|\.vscode|__pycache__|\.pytest_cache" && exit 1 || true
+                  uvx twine check dist/*/*
 
             - name: Upload dist
               uses: actions/upload-artifact@v4
@@ -84,9 +125,22 @@ jobs:
         needs: build
         runs-on: ubuntu-latest
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'testpypi'
+        strategy:
+            max-parallel: 1
+            fail-fast: true
+            matrix:
+                include:
+                    - package: pyside-iconify-stubs-pyqt6
+                      environment: testpypi-release-pyqt6
+                    - package: pyside-iconify-stubs-pyqt5
+                      environment: testpypi-release-pyqt5
+                    - package: pyside-iconify-stubs-pyside2
+                      environment: testpypi-release-pyside2
+                    - package: pyside-iconify
+                      environment: testpypi-release
         environment:
-            name: testpypi-release
-            url: https://test.pypi.org/project/pyside-iconify/
+            name: ${{ matrix.environment }}
+            url: https://test.pypi.org/project/${{ matrix.package }}/
         permissions:
             id-token: write
         steps:
@@ -96,10 +150,11 @@ jobs:
                   name: dist
                   path: dist/
 
-            - name: Publish to TestPyPI
+            - name: Publish ${{ matrix.package }} to TestPyPI
               uses: pypa/gh-action-pypi-publish@release/v1
               with:
                   repository-url: https://test.pypi.org/legacy/
+                  packages-dir: dist/${{ matrix.package }}/
 
     publish-pypi:
         name: Publish to PyPI
@@ -108,9 +163,22 @@ jobs:
         if: >-
             github.event_name == 'push' ||
             (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pypi')
+        strategy:
+            max-parallel: 1
+            fail-fast: true
+            matrix:
+                include:
+                    - package: pyside-iconify-stubs-pyqt6
+                      environment: pypi-release-pyqt6
+                    - package: pyside-iconify-stubs-pyqt5
+                      environment: pypi-release-pyqt5
+                    - package: pyside-iconify-stubs-pyside2
+                      environment: pypi-release-pyside2
+                    - package: pyside-iconify
+                      environment: pypi-release
         environment:
-            name: pypi-release
-            url: https://pypi.org/project/pyside-iconify/
+            name: ${{ matrix.environment }}
+            url: https://pypi.org/project/${{ matrix.package }}/
         permissions:
             id-token: write
         steps:
@@ -120,8 +188,10 @@ jobs:
                   name: dist
                   path: dist/
 
-            - name: Publish to PyPI
+            - name: Publish ${{ matrix.package }} to PyPI
               uses: pypa/gh-action-pypi-publish@release/v1
+              with:
+                  packages-dir: dist/${{ matrix.package }}/
 
     github-release:
         name: Create GitHub Release
@@ -141,7 +211,7 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
-                  gh release create "$GITHUB_REF_NAME" dist/* \
+                  gh release create "$GITHUB_REF_NAME" dist/*/* \
                       --repo "$GITHUB_REPOSITORY" \
                       --title "$GITHUB_REF_NAME" \
                       --generate-notes

@@ -13,9 +13,6 @@ IconWidget("mdi:home", color="red")
 [Iconify](https://iconify.design) и автоматически кэшируются. Результат —
 всегда стандартный `QIcon`, работает с любым виджетом, принимающим значки.
 
-> **Статус**: активная разработка, ещё не опубликовано на PyPI. Публичный API
-> может измениться до первого релиза.
->
 > Этот проект **не** связан с официальным проектом Iconify.
 
 ## Зачем
@@ -30,9 +27,17 @@ IconWidget("mdi:home", color="red")
 
 ## Быстрый старт
 
-```powershell
-pip install "pyside-iconify[pyside6]"
+Выберите Qt-привязку, которую использует ваше приложение, и установите соответствующий extra:
+
+```bash
+# Установите строку, соответствующую вашей Qt-привязке.
+pip install "pyside-iconify[pyside6]"   # вы используете PySide6 (также значение по умолчанию для типов)
+pip install "pyside-iconify[pyqt6]"     # вы используете PyQt6
+pip install "pyside-iconify[pyqt5]"     # вы используете PyQt5
+pip install "pyside-iconify[pyside2]"   # вы используете PySide2 (только Python 3.10)
 ```
+
+Extra устанавливает саму привязку и stub-файлы типов для неё. Если привязка уже установлена, то и простого `pip install pyside-iconify` хватит для работы (библиотека следует той привязке, которую импортировала ваша программа), но без extra вне PySide6 вы не получите точных подсказок типов. См. «Выбор Qt-привязки» ниже.
 
 ```python
 from PySide6.QtWidgets import QApplication, QPushButton
@@ -70,6 +75,9 @@ app.exec()
   `fallback` — замещающий значок
 - **Дружелюбно к QSS** — `qss="toolbar primary"` для группировки, стили —
   нативным `setStyleSheet()`; приоритет: параметры → QSS → тема
+- **Встроенная анимация** — `spin`, `pulse`, `breathe`, `ping`, `bounce`, а
+  также самоанимирующиеся значки из `line-md`, `meteocons` и `svg-spinners`
+  воспроизводятся в `IconWidget` как есть (только SMIL; см. ниже)
 - **Типизация и логирование** — полные аннотации типов с `py.typed`,
   стандартный `logging` (по умолчанию молчит)
 
@@ -80,30 +88,70 @@ app.exec()
 ```python
 get_icon(name, *, size=24, color=None, color_light_theme=None,
          color_dark_theme=None, selected_color=None, opacity=1.0,
-         width=None, height=None, rotate=0, spin=False,
-         h_flip=False, v_flip=False)
+         width=None, height=None, rotate=0, rotate_overflow=False,
+         spin=False, h_flip=False, v_flip=False)
 
-IconWidget(name, *, ..., hover_color=None, qss=None, parent=None)
+IconWidget(name, *, ..., hover_color=None, animation=None,
+           animation_period=None, animation_depth=None, autoplay=True,
+           speed=1.0, qss=None, parent=None)
 ```
 
-| Параметр                                 | Значение                                                                    |
-| ---------------------------------------- | --------------------------------------------------------------------------- |
-| `name`                                   | Имя вида `"mdi:home"` или встроенные данные значка                          |
-| `size`                                   | Число, `(ширина, высота)`, `QSize`, `"24px"`, `"1.5em"`                     |
-| `color`                                  | Цвет или маппинг `{оригинал: замена}`                                       |
-| `color_light_theme` / `color_dark_theme` | Переопределение по темам, главнее `color`                                   |
-| `selected_color`                         | Цвет при выборе элемента (item views)                                       |
-| `hover_color`                            | Цвет наведения IconWidget / `set_icon` — только явное включение             |
-| `opacity`                                | Общая прозрачность 0–1; умножается на альфу цвета                           |
-| `width` / `height`                       | Неквадратные значки; главнее `size`                                         |
-| `rotate`                                 | Любой угол в градусах, автоуменьшение против обрезки                        |
-| `spin`                                   | Непрерывное вращение для индикаторов загрузки                               |
-| `h_flip` / `v_flip`                      | Горизонтальное / вертикальное отражение                                     |
-| `qss`                                    | Теги группировки QSS, селектор `IconWidget[qss~="tag"]` (только IconWidget) |
+| Параметр                                 | Значение                                                                                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                   | Имя вида `"mdi:home"` или встроенные данные значка                                                                                                                    |
+| `size`                                   | Число, `(ширина, высота)`, `QSize`, `"24px"`, `"1.5em"`                                                                                                               |
+| `color`                                  | Цвет или маппинг `{оригинал: замена}`                                                                                                                                 |
+| `color_light_theme` / `color_dark_theme` | Переопределение по темам, главнее `color`                                                                                                                             |
+| `selected_color`                         | Цвет при выборе элемента (item views)                                                                                                                                 |
+| `hover_color`                            | Цвет наведения IconWidget / `set_icon` — только явное включение                                                                                                       |
+| `opacity`                                | Общая прозрачность 0–1; умножается на альфу цвета                                                                                                                     |
+| `width` / `height`                       | Неквадратные значки; главнее `size`                                                                                                                                   |
+| `rotate`                                 | Любой угол в градусах, автоуменьшение против обрезки                                                                                                                  |
+| `rotate_overflow`                        | Сохраняет исходный размер при вращении; углы могут обрезаться                                                                                                         |
+| `spin`                                   | Непрерывное вращение для индикаторов загрузки                                                                                                                         |
+| `animation` / `animation_period`         | Только IconWidget: `"spin"`, `"pulse"`, `"breathe"`, `"ping"` или `"bounce"`; секунд на цикл                                                                          |
+| `autoplay` / `speed`                     | Только IconWidget: автоматически проигрывает собственную SMIL-анимацию значка; множитель скорости                                                                     |
+| `animation_depth`                        | Сила анимации, 0–1 (по умолчанию: pulse 0.25, breathe 0.7, ping 1, bounce 0.25). ping и bounce рисуют значок в 1/(1+depth) виджета, оставляя место для волны и прыжка |
+| `h_flip` / `v_flip`                      | Горизонтальное / вертикальное отражение                                                                                                                               |
+| `qss`                                    | Теги группировки QSS, селектор `IconWidget[qss~="tag"]` (только IconWidget)                                                                                           |
 
 Цвета принимают имена CSS/SVG, HEX 3/4/6/8 знаков (порядок `#RRGGBBAA`),
 `rgb()/rgba()/hsl()/hsla()`, кортежи, `QColor`, `Qt.GlobalColor`.
 Неразбираемый цвет вызывает исключение, а не молча становится чёрным.
+
+## Анимированные значки (SMIL)
+
+Некоторые наборы Iconify (`line-md`, `meteocons`, `svg-spinners`, `eos-icons` и
+др.) содержат значки, которые анимируются сами. `IconWidget` проигрывает их без
+дополнительного кода:
+
+```python
+IconWidget("line-md:loading-loop", size=48)       # по кругу
+IconWidget("line-md:account")                     # рисуется один раз и замирает
+IconWidget("meteocons:partly-cloudy-day-rain", size=96)
+```
+
+```python
+w = IconWidget("line-md:account", autoplay=False, speed=0.5)
+w.play(); w.pause(); w.replay(); w.setSpeed(2)
+w.isAnimated(), w.isPlaying()
+```
+
+`get_icon()` и `set_icon()` возвращают стандартный `QIcon`, который не умеет
+двигаться сам, поэтому показывают **конечное состояние** анимации. Для
+анимированной версии используйте `IconWidget`. `is_animated("line-md:account")`
+сообщает, есть ли у значка анимация (работает без Qt).
+
+Охват: **поддерживается только SMIL** (`<animate>`, `<set>`,
+`<animateTransform>`, `<animateMotion>` внутри SVG). Другие виды анимации,
+такие как CSS-анимация, скрипты, Lottie или GIF, не проигрываются. Значок с
+SMIL-возможностью, которую библиотека не реализует, рисуется статичной картинкой
+своего конечного состояния, а предупреждение пишется в журнал один раз.
+
+Кадры анимации кэшируются как растровые изображения (память меняется на
+скорость). Длинный зацикленный значок большого размера может занять несколько
+МиБ из 32 МиБ кэша по умолчанию; увеличьте его через `set_cache_limits()`, если
+показываете много значков одновременно.
 
 ## Офлайн-упаковка
 
@@ -131,23 +179,57 @@ load_bundle("icons.json")  # при старте приложения; рабо�
 скоростью. Для больших сеток используйте item views с `get_icon`;
 `IconWidget` предназначен для отдельных мест со значками.
 
+## Выбор Qt-привязки
+
+Один и тот же код работает на четырёх привязках. Импортируйте свою как обычно, библиотека последует за ней.
+
+| Привязка | Статус                         | Extra                     |
+| -------- | ------------------------------ | ------------------------- |
+| PySide6  | Поддерживается, основная       | `pyside-iconify[pyside6]` |
+| PyQt6    | Поддерживается                 | `pyside-iconify[pyqt6]`   |
+| PyQt5    | Совместима                     | `pyside-iconify[pyqt5]`   |
+| PySide2  | Совместима, только Python 3.10 | `pyside-iconify[pyside2]` |
+
+Как выбирается привязка, по порядку:
+
+1. Переменная окружения `PYSIDE_ICONIFY_QT_API` (`pyside6`, `pyqt6`, `pyqt5` или `pyside2`), если задана.
+2. Привязка, которую ваша программа уже импортировала до `pyside_iconify`.
+3. Первая из установленных, в порядке PySide6, PyQt6, PyQt5, PySide2.
+
+Примечания:
+
+- **Не смешивайте привязки в одном процессе.** Если программа импортировала одну привязку, а переменная окружения указывает на другую, библиотека выдаст ошибку, а не будет гадать.
+- **Подсказки типов.** Extras `pyqt6`, `pyqt5` и `pyside2` дополнительно ставят небольшой пакет заглушек (`pyside-iconify-stubs-<привязка>`), чтобы редакторы и проверки типов видели классы вашей привязки (`QIcon`, `QSize`, ...), а не `Any`. Установка позже тоже работает.
+- **Qt5 и HiDPI.** В Qt5 нужно задать `Qt.AA_UseHighDpiPixmaps` до создания `QApplication`, иначе на экранах с высокой плотностью иконки будут размытыми. В Qt6 это включено по умолчанию.
+- **Лицензия PyQt.** PyQt5 и PyQt6 распространяются Riverbank Computing по GPL v3 или по коммерческой лицензии. Сам pyside-iconify имеет лицензию MIT и не включает Qt или PyQt, но если вы выберете PyQt, ваше приложение подчиняется лицензии PyQt. PySide6 и PySide2 распространяются по LGPL.
+
 ## Поддерживаемый охват
 
-| Элемент      | Охват                                    |
-| ------------ | ---------------------------------------- |
-| Python       | 3.10 – 3.14                              |
-| Qt-привязка  | PySide6                                  |
-| ОС           | Windows, macOS, Linux (CI на macOS)      |
-| PySide2/PyQt | Не поддерживается (возможен PyQt6 позже) |
+| Элемент | Охват                                                                   |
+| ------- | ----------------------------------------------------------------------- |
+| Python  | 3.10 – 3.14 (PySide2: только 3.10, его последняя поддерживаемая версия) |
+| Qt      | PySide6, PyQt6 (6.4+); PyQt5 (5.15.9+); PySide2 (5.15.2.1)              |
+| ОС      | Windows, macOS, Linux (CI на macOS)                                     |
 
 ## Разработка
 
-```powershell
-uv sync --extra pyside6 --group test
-$env:QT_QPA_PLATFORM = "offscreen"
-pytest -v
+```bash
+uv sync --extra pyside6 --group test   # один раз: ставит PySide6 и инструменты тестирования
+uv run pytest -v                       # тесты (сначала задайте QT_QPA_PLATFORM=offscreen)
+uv run examples/smil_showcase.py       # запустить пример из examples/
 ```
 
+Extras взаимоисключающие. Чтобы попробовать другую Qt-привязку, используйте одноразовое окружение; ваш `.venv` останется на PySide6:
+
+```bash
+uv run --isolated --extra pyqt6 --group test pytest -v
+uv run --isolated --extra pyqt6 examples/smil_showcase.py
+# --extra pyqt5, или: --python 3.10 --extra pyside2
+```
+
+Файлы в `examples/` импортируют Qt через небольшой помощник (`examples/_qt.py`), чтобы работать на любой привязке. В собственном приложении импортируйте свою привязку напрямую, как в быстром старте.
+
+- Руководство для участников и чек-лист релиза: [CONTRIBUTING.md](../../CONTRIBUTING.md)
 - Архитектура и проектные решения: [docs/architecture.md](../architecture.md)
 - Дорожная карта: [docs/roadmap.md](../roadmap.md)
 - Бенчмарк: `uv run benchmarks/list_scroll.py`

@@ -7,9 +7,15 @@ from collections.abc import Mapping
 from dataclasses import replace
 from hashlib import sha256
 
-from PySide6.QtCore import QByteArray, QRectF, Qt
-from PySide6.QtGui import QImage, QPainter, QPixmap
-from PySide6.QtSvg import QSvgRenderer
+from pyside_iconify._qt import (
+    QByteArray,
+    QImage,
+    QPainter,
+    QPixmap,
+    QRectF,
+    QSvgRenderer,
+    Qt,
+)
 
 from pyside_iconify._errors import UnsupportedSvgError
 from pyside_iconify.core.svg import build_svg

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
+from _qt import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
 from _i18n import bind, toggle_language
 from _theme import is_dark, set_theme

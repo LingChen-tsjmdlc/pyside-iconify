@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QWidget
+from _qt import QApplication, QColor, QPalette, QWidget
 
 STYLE = """
 QWidget { background: palette(window); color: palette(window-text); }

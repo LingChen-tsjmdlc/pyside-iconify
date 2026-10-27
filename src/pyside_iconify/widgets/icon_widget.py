@@ -6,9 +6,22 @@ import math
 from collections.abc import Mapping
 from hashlib import sha256
 
-from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QPainter, QPalette, QPaintEvent
-from PySide6.QtWidgets import QSizePolicy, QStyle, QStyleOption, QWidget
+from pyside_iconify._qt import (
+    QEvent,
+    QObject,
+    QPainter,
+    QPaintEvent,
+    QPalette,
+    QRectF,
+    QSize,
+    QSizePolicy,
+    QStyle,
+    QStyleOption,
+    Qt,
+    QTimer,
+    QWidget,
+    Signal,
+)
 
 from pyside_iconify._config import get_default_config
 from pyside_iconify._errors import (
@@ -38,6 +51,20 @@ from pyside_iconify.rendering import smil_player
 from pyside_iconify.widgets.animation import Playhead, get_spin_clock
 
 _UNSET = object()
+
+# ThemeChange 只在部分绑定里存在（PyQt5、PyQt6 没有），缺了就少监听一种事件
+_THEME_CHANGE = getattr(QEvent.Type, "ThemeChange", None)
+_REPOLISH_EVENTS = frozenset(
+    kind
+    for kind in (
+        QEvent.Type.PaletteChange,
+        QEvent.Type.ApplicationPaletteChange,
+        QEvent.Type.StyleChange,
+        _THEME_CHANGE,
+    )
+    if kind is not None
+)
+_REFRESH_EVENTS = _REPOLISH_EVENTS | {QEvent.Type.FontChange, QEvent.Type.EnabledChange}
 
 
 def _valid_speed(value: float) -> float:
@@ -437,23 +464,27 @@ class IconWidget(QWidget):
             event: Qt 状态变化事件。
         """
         super().changeEvent(event)
-        if event.type() in {
-            QEvent.Type.PaletteChange,
-            QEvent.Type.ApplicationPaletteChange,
-            QEvent.Type.StyleChange,
-            QEvent.Type.ThemeChange,
-        }:
+        kind = event.type()
+        if kind in _REPOLISH_EVENTS:
             self._repolish()
-        if event.type() in {
-            QEvent.Type.PaletteChange,
-            QEvent.Type.ApplicationPaletteChange,
-            QEvent.Type.FontChange,
-            QEvent.Type.EnabledChange,
-            QEvent.Type.StyleChange,
-            QEvent.Type.ThemeChange,
-        }:
+        if kind in _REFRESH_EVENTS:
             self.updateGeometry()
             self.update()
+
+    def _has_own_palette(self) -> bool:
+        """控件自己是否显式设置过调色板项。
+
+        PySide6 能直接读调色板的 resolveMask；其他绑定没有这个方法，改看
+        WA_SetPalette。Qt 的 setPalette 在传入非空调色板时才打开该属性，
+        含义相同。
+
+        Returns:
+            设置过调色板项返回 True，完全跟随样式和应用调色板返回 False。
+        """
+        palette = self.palette()
+        if hasattr(palette, "resolveMask"):
+            return bool(palette.resolveMask())
+        return self.testAttribute(Qt.WidgetAttribute.WA_SetPalette)
 
     def _repolish(self) -> None:
         """重新应用控件样式，带重入保护。"""
@@ -461,7 +492,7 @@ class IconWidget(QWidget):
             return
         self._repolishing = True
         try:
-            if not self.palette().resolveMask():
+            if not self._has_own_palette():
                 self.setPalette(QPalette())
             style = self.style()
             style.unpolish(self)

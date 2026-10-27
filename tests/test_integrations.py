@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QAction, QColor, QIcon
-from PySide6.QtWidgets import (
+from tests.qt import (
+    QAction,
     QApplication,
+    QColor,
+    QIcon,
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QSize,
+    Qt,
     QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
@@ -175,7 +178,7 @@ def test_selected_mode_color(qtbot: object) -> None:
 
 def test_hover_does_not_affect_disabled(qtbot: object) -> None:
     """带悬停参数的按钮，禁用后图标变淡且不显示悬停色。"""
-    from PySide6.QtWidgets import QApplication
+    from tests.qt import QApplication
 
     _collection()
     set_icon(button := QPushButton(), "intg:sq", size=24, color="#ff0000", hover_color="#0000ff")

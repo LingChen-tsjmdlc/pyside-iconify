@@ -39,7 +39,7 @@ def test_pack_and_load_bundle_offline(
     qtbot: object, tmp_path: object
 ) -> None:
     """打包后清空内存、离线加载，图标照常显示。"""
-    from PySide6.QtWidgets import QApplication
+    from tests.qt import QApplication
 
     QApplication.processEvents()
     default_client().set_offline(True)

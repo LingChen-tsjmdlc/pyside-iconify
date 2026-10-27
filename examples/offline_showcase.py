@@ -5,6 +5,8 @@ cover sizes, color formats, multicolor icons, animation, QSS, missing-icon state
 aliases, delayed data, runtime updates and a built-in interface self-check.
 
 Run: uv run examples/offline_showcase.py
+Other Qt binding: uv run --isolated --extra pyqt6 examples/offline_showcase.py
+(or --extra pyqt5; PySide2: --python 3.10 --extra pyside2)
 """
 
 from __future__ import annotations
@@ -13,18 +15,22 @@ import sys
 import threading
 from collections.abc import Callable
 
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (
-    QApplication,
+from _qt import (
+    QColor,
+    QEvent,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
+    QSize,
+    QTimer,
     QVBoxLayout,
     QWidget,
+    Qt,
+    make_app,
+    run,
 )
 
 from _common import add_controls
@@ -729,11 +735,11 @@ def build_window() -> QWidget:
 
 def main() -> int:
     """运行演示窗口。"""
-    app = QApplication(sys.argv)
+    app = make_app(sys.argv)
     register_icons()
     window = build_window()
     window.show()
-    return app.exec()
+    return run(app)
 
 
 if __name__ == "__main__":

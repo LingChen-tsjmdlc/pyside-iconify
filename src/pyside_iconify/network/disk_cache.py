@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import RLock
 from time import time
 
-from PySide6.QtCore import QStandardPaths
+from pyside_iconify._qt import QStandardPaths
 
 from pyside_iconify._logging import logger
 

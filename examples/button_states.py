@@ -4,14 +4,15 @@ Hover and selected colors are opt-in. Without them an icon behaves like a plain
 QIcon. Needs network (the icons are fetched from the Iconify API).
 
 Run: uv run examples/button_states.py
+Other Qt binding: uv run --isolated --extra pyqt6 examples/button_states.py
+(or --extra pyqt5; PySide2: --python 3.10 --extra pyside2)
 """
 
 from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import (
-    QApplication,
+from _qt import (
     QGroupBox,
     QHBoxLayout,
     QListWidget,
@@ -19,6 +20,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    make_app,
+    run,
 )
 
 from _common import add_controls
@@ -106,10 +109,10 @@ def build_window() -> QWidget:
 
 def main() -> int:
     """运行示例。"""
-    app = QApplication(sys.argv)
+    app = make_app(sys.argv)
     window = build_window()
     window.show()
-    return app.exec()
+    return run(app)
 
 
 if __name__ == "__main__":

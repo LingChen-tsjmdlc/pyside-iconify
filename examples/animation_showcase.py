@@ -6,15 +6,15 @@ bottom section rotates the same full-bleed square with and without
 ``rotate_overflow`` so the difference is visible against a shaded icon box.
 
 Run: uv run examples/animation_showcase.py
+Other Qt binding: uv run --isolated --extra pyqt6 examples/animation_showcase.py
+(or --extra pyqt5; PySide2: --python 3.10 --extra pyside2)
 """
 
 from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QApplication,
+from _qt import (
     QCheckBox,
     QGridLayout,
     QGroupBox,
@@ -23,6 +23,9 @@ from PySide6.QtWidgets import (
     QSlider,
     QVBoxLayout,
     QWidget,
+    Qt,
+    make_app,
+    run,
 )
 
 from _common import add_controls
@@ -197,10 +200,10 @@ def build_window() -> QWidget:
 
 def main() -> int:
     """运行示例。"""
-    app = QApplication(sys.argv)
+    app = make_app(sys.argv)
     window = build_window()
     window.show()
-    return app.exec()
+    return run(app)
 
 
 if __name__ == "__main__":

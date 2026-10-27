@@ -5,13 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "pyside-iconify"
 dynamic = ["version"]
-description = "An independent Iconify icon integration for PySide6, producing standard QIcon objects."
+description = "An independent Iconify icon integration for PySide6 and PyQt6 (PyQt5 and PySide2 compatible), producing standard QIcon objects."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "jerrylu" }]
-keywords = ["pyside", "pyside6", "qt", "iconify", "svg", "icons"]
+keywords = ["pyside", "pyside6", "pyqt", "pyqt6", "qt", "iconify", "svg", "icons"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Win32 (MS Windows)",
@@ -37,13 +37,25 @@ Source = "https://github.com/LingChen-tsjmdlc/pyside-iconify"
 Issues = "https://github.com/LingChen-tsjmdlc/pyside-iconify/issues"
 
 [project.optional-dependencies]
-# 仅作 1.0 之后的评估入口，当前版本不支持 PySide2。
-pyside2 = [
-    "PySide2==5.15.2.1; python_version < '3.11'",
-]
+# 四个绑定互斥，只选一个。除 pyside6 外，其余各带一个只含类型存根的小包，
+# 让编辑器里的类型提示指向对应的绑定（见 tools/gen_qt_stubs.py）。
+# 小包版本必须与本包完全相同，每次改 __version__ 后运行 tools/gen_qt_stubs.py 校对。
 pyside6 = [
     "PySide6-Essentials>=6.8.3,<7; python_version >= '3.10' and python_version < '3.14'",
     "PySide6-Essentials>=6.11.2,<7; python_version >= '3.14'",
+]
+pyqt6 = [
+    "PyQt6>=6.4,<7",
+    "pyside-iconify-stubs-pyqt6==1.2.0",
+]
+pyqt5 = [
+    "PyQt5>=5.15.9,<6",
+    "pyside-iconify-stubs-pyqt5==1.2.0",
+]
+# PySide2 官方 wheel 只支持 Python 3.10 及更早，3.11 起导入即崩溃或退出时堆损坏
+pyside2 = [
+    "PySide2==5.15.2.1; python_version < '3.11'",
+    "pyside-iconify-stubs-pyside2==1.2.0; python_version < '3.11'",
 ]
 
 [tool.hatch.version]
@@ -56,6 +68,8 @@ exclude = ["**/.gitkeep", "**/__pycache__/**"]
 [tool.hatch.build.targets.sdist]
 include = [
     "/src/pyside_iconify",
+    "/stubs",
+    "/tools",
     "/docs",
     "/examples",
     "/tests",
@@ -75,9 +89,25 @@ test = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-qt_api = "pyside6"
+# qt_api 不写死：pytest-qt 会按已安装的绑定自动选择；多绑定环境用 PYTEST_QT_API 指定
+
+# 存根小包放在 stubs/ 里，作为 uv 工作区成员在本地解析。这只影响开发和 CI：
+# 发布出去的 wheel 里这三个依赖仍是普通的 PyPI 依赖（已核对元数据逐行相同）。
+[tool.uv.workspace]
+members = ["stubs/*"]
+
+[tool.uv.sources]
+pyside-iconify-stubs-pyqt6 = { workspace = true }
+pyside-iconify-stubs-pyqt5 = { workspace = true }
+pyside-iconify-stubs-pyside2 = { workspace = true }
 
 [tool.uv]
+# PyQt5-Qt5 的新版本（5.15.12 之后）不再提供 Windows wheel，Windows 上最后可用的是 5.15.2。
+# 声明 Windows 为必须支持的环境，uv 解析时就会为 Windows 选到有 wheel 的版本，
+# 否则 `uv run --extra pyqt5` 会在 Windows 上因为找不到安装包而失败。
+required-environments = [
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
 conflicts = [
-    [{ extra = "pyside2" }, { extra = "pyside6" }],
+    [{ extra = "pyside6" }, { extra = "pyqt6" }, { extra = "pyqt5" }, { extra = "pyside2" }],
 ]

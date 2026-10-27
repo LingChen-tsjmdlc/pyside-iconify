@@ -37,7 +37,7 @@ from pyside_iconify.core.smil import is_supported_animation
 from pyside_iconify.core.svg import collect_paints
 from pyside_iconify.core.types import IconData
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 def add_icon(name: str, data: IconData | str, *, replace: bool = False) -> None:

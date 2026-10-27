@@ -4,25 +4,30 @@ The icons below are not registered locally, so each one is fetched from the
 Iconify API on first use and cached. Needs network.
 
 Run: uv run examples/network_showcase.py
+Other Qt binding: uv run --isolated --extra pyqt6 examples/network_showcase.py
+(or --extra pyqt5; PySide2: --python 3.10 --extra pyside2)
 """
 
 from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import (
+from _qt import (
     QApplication,
+    QColor,
     QColorDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPalette,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
+    Qt,
+    make_app,
+    run,
 )
 
 from _common import add_controls
@@ -355,10 +360,10 @@ def build_window() -> QWidget:
 
 def main() -> int:
     """运行演示窗口。"""
-    app = QApplication(sys.argv)
+    app = make_app(sys.argv)
     window = build_window()
     window.show()
-    return app.exec()
+    return run(app)
 
 
 if __name__ == "__main__":

@@ -8,8 +8,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, QPropertyAnimation, QTimer
-from PySide6.QtWidgets import QApplication
+from tests.qt import QApplication, QCoreApplication, QEvent, QPropertyAnimation, QTimer
 
 from pyside_iconify import set_default_config
 from pyside_iconify.core.registry import registry

@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QPalette
-from PySide6.QtWidgets import QStyleOption, QWidget
+from tests.qt import QColor, QFont, QPalette, QStyleOption, Qt, QWidget
 
 from pyside_iconify import IconWidget, add_collection, add_icon, mark_pending
-from tests.helpers import assert_color, show_widget, widget_color
+from tests.helpers import assert_color, image_bytes, show_widget, widget_color
 
 
 @pytest.fixture
@@ -73,7 +71,7 @@ def test_squeezed_widget_keeps_placeholder_square(qtbot: object) -> None:
     widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     widget.resize(120, 30)
     widget.show()
-    from PySide6.QtWidgets import QApplication
+    from tests.qt import QApplication
 
     QApplication.processEvents()
     image = widget.grab().toImage()
@@ -536,15 +534,15 @@ def test_smil_loop_keeps_moving_and_pause_freezes(qtbot: object, smil_icons: Non
     frames = set()
     for _ in range(10):
         qtbot.wait(45)
-        frames.add(widget.grab().toImage().constBits().tobytes())
+        frames.add(image_bytes(widget.grab().toImage()))
     assert len(frames) > 4 and widget.isPlaying()
     widget.pause()
-    first = widget.grab().toImage().constBits().tobytes()
+    first = image_bytes(widget.grab().toImage())
     qtbot.wait(250)
-    assert widget.grab().toImage().constBits().tobytes() == first and not widget.isPlaying()
+    assert image_bytes(widget.grab().toImage()) == first and not widget.isPlaying()
     widget.play()
     qtbot.wait(120)
-    assert widget.grab().toImage().constBits().tobytes() != first
+    assert image_bytes(widget.grab().toImage()) != first
 
 
 def test_smil_speed_and_validation(qtbot: object, smil_icons: None) -> None:

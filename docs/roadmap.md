@@ -12,8 +12,8 @@ Progress and plans for pyside-iconify. Architecture background lives in
 | 2    | Network download + disk cache       | Done                                              |
 | 3    | Integrations, hover, packing        | Done (on-device acceptance pending)               |
 | 4    | Open-source release standardization | Done (1.0.0 on PyPI)                              |
-| 5    | 1.1.0: animation                    | **In progress**                                   |
-| 6    | 1.2.0: more bindings                | Planned                                           |
+| 5    | 1.1.0: animation                    | Done                                              |
+| 6    | 1.2.0: more bindings                | **In progress** (on-device acceptance pending)    |
 | 7    | 1.3.0: tooling and website          | Planned                                           |
 
 ## Step 4 — release standardization
@@ -48,7 +48,11 @@ Theme: animation. Released only after every item below is done and accepted.
 
 ## Step 6 — 1.2.0
 
-- [ ] PyQt6, PyQt5 and PySide2 support
+- [x] PySide6 and PyQt6 support; PyQt5 and PySide2 compatibility
+- [x] Single Qt shim (`_qt.py`), selectable with `PYSIDE_ICONIFY_QT_API`
+- [x] Per-binding type stub packages (`pyside-iconify-stubs-<binding>`)
+- [x] CI: test matrix for every binding (PySide2 best effort)
+- [x] Maintainer acceptance on real hardware (Qt5 HiDPI, cross-screen drag)
 
 ## Step 7 — 1.3.0
 

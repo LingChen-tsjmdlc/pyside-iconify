@@ -5,11 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TypeAlias
 
-from PySide6.QtCore import QEvent, QObject
-from PySide6.QtGui import QAction, QIcon, QStandardItem
-from PySide6.QtWidgets import (
+from pyside_iconify._qt import (
     QAbstractButton,
+    QAction,
+    QEvent,
+    QIcon,
     QListWidgetItem,
+    QObject,
+    QStandardItem,
     QTabWidget,
     QTreeWidgetItem,
     QWidget,
