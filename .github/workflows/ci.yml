@@ -151,4 +151,5 @@ jobs:
                   ../.typing/bin/python -m mypy check.py --no-incremental | tee mypy.txt
                   grep -q 'Type of "w.size()" is "QSize"' pyright.txt
                   grep -q 'Revealed type is "${{ matrix.qt_module }}.QtCore.QSize"' mypy.txt
-                  ! grep -qE 'error' pyright.txt mypy.txt
+                  grep -q '^0 errors, 0 warnings' pyright.txt
+                  grep -q '^Success: no issues found' mypy.txt
