@@ -51,7 +51,9 @@ Theme: animation. Released only after every item below is done and accepted.
 - [x] PySide6 and PyQt6 support; PyQt5 and PySide2 compatibility
 - [x] Single Qt shim (`_qt.py`), selectable with `PYSIDE_ICONIFY_QT_API`
 - [x] Per-binding type stub packages (`pyside-iconify-stubs-<binding>`)
-- [x] CI: test matrix for every binding (PySide2 best effort)
+- [x] CI: test matrix for PySide6, PyQt6 and PyQt5; PySide2 is checked on the
+      maintainer's machine (no usable Intel macOS runner), its type stubs are
+      still checked in CI
 - [x] Maintainer acceptance on real hardware (Qt5 HiDPI, cross-screen drag)
 
 ## Step 7 — 1.3.0

@@ -76,26 +76,9 @@ jobs:
             - name: 运行 Qt 回归测试
               run: uv run pytest -v --tb=short
 
-    # PySide2 为兼容支持，不进门槛：官方 wheel 在 macOS 上只有 Intel 版本，
-    # 在 Apple Silicon 的 runner 上装不上。这里在 Intel runner 的 Python 3.10 上尽力运行，
-    # 失败不阻塞合并；维护者在本机验收是主要手段。
-    test-pyside2:
-        name: PySide2 (best effort) | macOS Intel Python 3.10
-        runs-on: macos-13
-        continue-on-error: true
-        steps:
-            - name: 检出代码
-              uses: actions/checkout@v4
-            - name: 安装 uv
-              uses: astral-sh/setup-uv@v4
-              with:
-                  enable-cache: true
-            - name: 安装 Python
-              run: uv python install 3.10
-            - name: 同步锁定依赖
-              run: uv sync --python 3.10 --extra pyside2 --group test
-            - name: 运行 Qt 回归测试
-              run: uv run pytest -v --tb=short
+    # PySide2 不进 CI 运行测试：官方 wheel 在 macOS 上只有 Intel 版本，而 GitHub 已
+    # 没有可用的 Intel macOS 运行器（macos-13 下线后任务会一直排队）。PySide2 靠维护者
+    # 在本机验收（见 CONTRIBUTING.md），类型存根仍在下面的 typing 任务里逐个检查。
 
     # 类型提示检查：每个绑定分别从构建出的 wheel 安装，用 pyright 与 mypy 断言类型精确。
     # 这是防止以后改坏 _qt.pyi 的唯一办法，见 tools/gen_qt_stubs.py。

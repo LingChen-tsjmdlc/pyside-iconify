@@ -61,10 +61,10 @@ on:
                     - pypi
 
 jobs:
-    # Release gate: the full CI (every binding test matrix and the type checks)
-    # must pass first. If any required job fails, nothing below runs and
-    # nothing is published. (PySide2 is best effort in ci.yml and does not
-    # block, see the comment there.)
+    # Release gate: the full CI (the PySide6, PyQt6 and PyQt5 test matrices and the
+    # type checks for all four bindings) must pass first. If any job fails,
+    # nothing below runs and nothing is published. PySide2 is not tested in CI,
+    # see the comment in ci.yml.
     test:
         name: Tests
         uses: ./.github/workflows/ci.yml
